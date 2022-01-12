@@ -624,6 +624,28 @@ vm_Word method_Int_plus[] = {
 
 // Brandon's code starts here
 
+/* Int:sub (new native_method) */
+obj_ref native_Int_sub(void ) {
+	obj_ref this = vm_fp->obj;
+	assert_is_type(this, the_class_Int);
+	obj_Int this_int = (obj_Int) this;
+	obj_ref other = (vm_fp - 1)->obj;
+	assert_is_type(other, the_class_Int);
+	obj_Int other_int = (obj_Int) other;
+	log_debug("Subtracting integer values: %d - %d",
+			this_int->value, other_int->value);
+	obj_ref diff = new_int(this_int->value - other_int->value);
+	return diff;
+}
+
+vm_Word method_Int_sub[] = {
+		{.instr = vm_op_enter},
+		{.instr = vm_op_call_native},
+		{.native = native_Int_sub},
+		{.instr = vm_op_return},
+		{.intval = 1}
+};
+
 /* Int:mult (new native_method) */
 obj_ref native_Int_mult(void ) {
 	obj_ref this = vm_fp->obj;
@@ -646,6 +668,28 @@ vm_Word method_Int_mult[] = {
 		{.intval = 1}
 };
 
+/* Int:div (new native_method) */
+obj_ref native_Int_div(void ) {
+	obj_ref this = vm_fp->obj;
+	assert_is_type(this, the_class_Int);
+	obj_Int this_int = (obj_Int) this;
+	obj_ref other = (vm_fp - 1)->obj;
+	assert_is_type(other, the_class_Int);
+	obj_Int other_int = (obj_Int) other;
+	log_debug("Dividing integer values: %d / %d",
+			this_int->value, other_int->value);
+	obj_ref quotient = new_int(this_int->value / other_int->value);
+	return quotient;
+}
+
+vm_Word method_Int_div[] = {
+		{.instr = vm_op_enter},
+		{.instr = vm_op_call_native},
+		{.native = native_Int_div},
+		{.instr = vm_op_return},
+		{.intval = 1}
+};
+
 // Brandon's code ends here
 
 /* The Int Class (a singleton) */
@@ -662,7 +706,9 @@ struct  class_struct  the_class_Int_struct = {
                 method_Int_equals,  // EQUALS
                 method_Int_less, // LESS
                 method_Int_plus, // PLUS
-				method_Int_mult // MULT
+                method_Int_sub,  // SUBTRACTION
+                method_Int_mult, // MULTIPLY
+                method_Int_div // DIVIDE
         }
  };
 
