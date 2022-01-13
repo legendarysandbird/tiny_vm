@@ -1,9 +1,6 @@
 from lark import Lark, Transformer, v_args
 
 calc_grammar = """
-    ?start: sum
-          | NAME "=" sum    -> assign_var
-
     ?sum: product
         | sum "+" product   -> add
         | sum "-" product   -> sub
@@ -14,7 +11,6 @@ calc_grammar = """
 
     ?atom: NUMBER           -> number
          | "-" atom         -> neg
-         | NAME             -> var
          | "(" sum ")"
 
     %import common.CNAME -> NAME
@@ -27,34 +23,57 @@ calc_grammar = """
 
 @v_args(inline=True)    # Affects the signatures of the methods
 class CalculateTree(Transformer):
-    from operator import add, sub, mul, truediv as div, neg
-    number = float
-
     def __init__(self):
-        self.vars = {}
+        print(".class Sample:Obj")
+        print()
+        print(".method $constructor")
 
-    def assign_var(self, name, value):
-        self.vars[name] = value
-        return value
+    def add(self, a, b):
+        ret = a + b
+        ret += "\tcall Int:plus\n"
 
-    def var(self, name):
-        try:
-            return self.vars[name]
-        except KeyError:
-            raise Exception("Variable not found: %s" % name)
+        return ret
 
+    def sub(self, a, b):
+        ret = a + b
+        ret += "\tcall Int:sub\n"
 
-calc_parser = Lark(calc_grammar, parser='lalr', transformer=CalculateTree())
+        return ret
+
+    def mul(self, a, b):
+        ret = a + b
+        ret += "\tcall Int:mult\n"
+
+        return ret
+
+    def div(self, a, b):
+        ret = a + b
+        ret += "\tcall Int:div\n"
+
+        return ret
+
+    def neg(self, a):
+        ret = "\tconst 0\n"
+        ret += a
+        ret += "\tcall Int:sub\n"
+
+        return ret
+
+    def number(self, num):
+        return "\tconst " + str(num) + "\n"
+
+calc_parser = Lark(calc_grammar, parser='lalr', start="sum", transformer=CalculateTree())
 calc = calc_parser.parse
 
 
 def main():
     while True:
         try:
-            s = input('> ')
+            s = input()
         except EOFError:
             break
         print(calc(s))
+    print("\treturn 0")
 
 if __name__ == '__main__':
     main()
