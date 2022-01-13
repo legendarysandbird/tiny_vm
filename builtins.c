@@ -610,7 +610,7 @@ obj_ref native_Int_plus(void ) {
     obj_Int other_int = (obj_Int) other;
     log_debug("Adding integer values: %d + %d",
            this_int->value, other_int->value);
-    obj_ref sum = new_int(this_int->value + other_int->value);
+    obj_ref sum = new_int(other_int->value + this_int->value);
     return sum;
 }
 
@@ -634,7 +634,7 @@ obj_ref native_Int_sub(void ) {
 	obj_Int other_int = (obj_Int) other;
 	log_debug("Subtracting integer values: %d - %d",
 			this_int->value, other_int->value);
-	obj_ref diff = new_int(this_int->value - other_int->value);
+	obj_ref diff = new_int(other_int->value - this_int->value);
 	return diff;
 }
 
@@ -656,7 +656,7 @@ obj_ref native_Int_mult(void ) {
 	obj_Int other_int = (obj_Int) other;
 	log_debug("Multiplying integer values: %d * %d",
 			this_int->value, other_int->value);
-	obj_ref product = new_int(this_int->value * other_int->value);
+	obj_ref product = new_int(other_int->value * this_int->value);
 	return product;
 }
 
@@ -678,7 +678,7 @@ obj_ref native_Int_div(void ) {
 	obj_Int other_int = (obj_Int) other;
 	log_debug("Dividing integer values: %d / %d",
 			this_int->value, other_int->value);
-	obj_ref quotient = new_int(this_int->value / other_int->value);
+	obj_ref quotient = new_int(other_int->value / this_int->value);
 	return quotient;
 }
 
