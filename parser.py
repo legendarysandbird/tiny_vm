@@ -73,6 +73,11 @@ def main():
         except EOFError:
             break
         print(calc(s))
+    print("\tcall Int:print")
+    print("\tpop")
+    print('\tconst "\\n"')
+    print("\tcall String:print")
+    print("\tpop")
     print("\treturn 0")
 
 if __name__ == '__main__':
