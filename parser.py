@@ -1,19 +1,23 @@
 from lark import Lark, Transformer, v_args
 
 calc_grammar = """
+	?start: sum
+		| NAME: NAME "=" sum	-> assign_var
+
     ?sum: product
-        | sum "+" product   -> add
-        | sum "-" product   -> sub
+        | sum "+" product   	-> add
+        | sum "-" product   	-> sub
 
     ?product: atom
-        | product "*" atom  -> mul
-        | product "/" atom  -> div
+        | product "*" atom  	-> mul
+        | product "/" atom  	-> div
 
-    ?atom: NUMBER           -> number
-         | "-" atom         -> neg
+    ?atom: NUMBER           	-> number
+         | "-" atom         	-> neg
+		 | NAME					-> var
          | "(" sum ")"
 
-    %import common.CNAME -> NAME
+    %import common.CNAME 		-> NAME
     %import common.NUMBER
     %import common.WS_INLINE
 
@@ -62,7 +66,7 @@ class CalculateTree(Transformer):
     def number(self, num):
         return "\tconst " + str(num) + "\n"
 
-calc_parser = Lark(calc_grammar, parser='lalr', start="sum", transformer=CalculateTree())
+calc_parser = Lark(calc_grammar, parser='lalr', transformer=CalculateTree())
 calc = calc_parser.parse
 
 
