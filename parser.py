@@ -1,8 +1,25 @@
+import sys
 from lark import Lark, Transformer, v_args
 
-calc_grammar = """
-	?start: sum
-		| NAME: NAME "=" sum	-> assign_var
+quack_grammar = """
+	?start: program
+
+	program: statement
+		| program statement
+
+	statement: rexp ";"
+		| assignment ";"
+		| methodcall ";"
+
+	methodcall: rexp "." NAME "(" ")"
+
+	rexp: sum
+
+	lexp: NAME
+
+	assignment: lexp ":" type "=" rexp
+
+	type: NAME
 
     ?sum: product
         | sum "+" product   	-> add
@@ -14,19 +31,19 @@ calc_grammar = """
 
     ?atom: NUMBER           	-> number
          | "-" atom         	-> neg
-		 | NAME					-> var
+		 | lexp					-> var
          | "(" sum ")"
 
-    %import common.CNAME 		-> NAME
-    %import common.NUMBER
-    %import common.WS_INLINE
+	%import common.CNAME 		-> NAME
+	%import common.NUMBER
+    %import common.WS
 
-    %ignore WS_INLINE
+	%ignore WS
 """
 
 
 @v_args(inline=True)    # Affects the signatures of the methods
-class CalculateTree(Transformer):
+class BuildTree(Transformer):
     def __init__(self):
         print(".class Sample:Obj")
         print()
@@ -66,23 +83,14 @@ class CalculateTree(Transformer):
     def number(self, num):
         return "\tconst " + str(num) + "\n"
 
-calc_parser = Lark(calc_grammar, parser='lalr', transformer=CalculateTree())
-calc = calc_parser.parse
+parser = Lark(quack_grammar, parser='lalr')
+tree = parser.parse
 
 
 def main():
-    while True:
-        try:
-            s = input()
-        except EOFError:
-            break
-        print(calc(s))
-    print("\tcall Int:print")
-    print("\tpop")
-    print('\tconst "\\n"')
-    print("\tcall String:print")
-    print("\tpop")
-    print("\treturn 0")
+	s = sys.stdin.read()
+	print()
+	print(tree(s).pretty())
 
 if __name__ == '__main__':
     main()
