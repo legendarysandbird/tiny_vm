@@ -22,6 +22,15 @@ tests/OBJ/*.json
 
 # Other generated files
 vm_code_table.c
+CMakeCache.txt
+CMakeFiles
+Makefile
+cmake_install.cmake
+grammarTest.py
+sample.json
+test.asm
+tiny_vm
+unit_tests/copy.asm
 
 # Experimental
 experiments
