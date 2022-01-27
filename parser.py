@@ -21,7 +21,7 @@ quack_grammar = """
 	assignment: lexp ":" typ "=" rexp
 		| lexp ":" typ "=" methodcall
 
-	typ: NAME
+	typ: NAME 					-> string
 
     ?sum: product
         | sum "+" product   	-> add
@@ -45,6 +45,14 @@ quack_grammar = """
 
 	%ignore WS
 """
+
+class Element:
+	def __init__(self, typ, text):
+		self.typ = typ
+		self.text = text
+	
+	def __str__(self):
+		return f"#Type: {self.typ} | Text: {self.text}#"
 
 var_list = {}
 
@@ -108,89 +116,65 @@ class BuildTree(Transformer):
 		for var in var_list:
 			li.append(var)
 		print(",".join(li))
-
+	
 	def program(self, text1, text2):
 		return f"{text1}{text2}"
 	
 	def statement(self, text):
-		return text
+		el = Element(text.typ, text.text)
+		return text.text
 
 	def assignment(self, name, typ, value):
-		#print(f"@ [{name}: ({typ}, {value})] @")
-
-		ret = value
-		ret += f"\tstore {name}\n"
-
-		return ret
+		el = Element(value.typ, f"{value.text}\tstore {name.text}\n")
+		return el
 		
-
 	def var(self, name):
-		return f"\tload {name}\n"
+		el = Element(name.typ, f"\tload {name.text}\n")
+		return el
 	
 	def typ(self, typ):
-		return typ
+		el = Element(typ.typ, typ.text)
+		return el
 
 	def lexp(self, name):
-		return name
+		el = Element("String", name)
+		return el
 	
 	def rexp(self, value):
-		return value
+		el = Element(value.typ, value.text)
+		return el
 	
-	def methodcall(self, value, method, arg=""):
-		#typ = var_list[value][0]
-		val = value.split(" ")[-1]
-		try:
-			int(val)
-			typ = "Int"
-		except ValueError:
-			if val in var_list:
-				typ = var_list[val]
-			else:
-				typ = "String"
-			
-		ret = f"{value}{arg}"
-		ret += f"\tcall {typ}:{method}\n"
-		return ret
+	def methodcall(self, value, method, arg=Element("String", "")):
+		el = Element(value.typ, f"{value.text}{arg.text}\tcall {value.typ}:{method.text}\n")
+		return el			
 	
 	def string(self, text):
-		return f"\tconst {text}\n"
+		el = Element("String", f"\tconst {text}\n")
+		return el
 
 	def add(self, a, b):
-		ret = a + b
-		ret += "\tcall Int:plus\n"
-
-		return ret
+		el = Element(a.typ, f"{a.text}{b.text}\tcall {a.typ}:plus\n")
+		return el
 
 	def sub(self, a, b):
-		ret = a + b
-		ret += "\tcall Int:sub\n"
-
-		return ret
+		el = Element(a.typ, f"{a.text}{b.text}\tcall {a.typ}:sub\n")
+		return el
 
 	def mul(self, a, b):
-		ret = a + b
-		ret += "\tcall Int:mult\n"
-
-		return ret
+		el = Element(a.typ, f"{a.text}{b.text}\tcall {a.typ}:mult\n")
+		return el
 
 	def div(self, a, b):
-		ret = a + b
-		ret += "\tcall Int:div\n"
-
-		return ret
+		el = Element(a.typ, f"{a.text}{b.text}\tcall {a.typ}:div\n")
+		return el
 
 	def neg(self, a):
-		ret = "\tconst 0\n"
-		ret += a
-		ret += "\tcall Int:sub\n"
-
-		return ret
+		el = Element(a.typ, f"\tconst 0\n{a.text}\tcall {a.typ}:sub\n")
+		return el
 
 	def number(self, num):
-		return "\tconst " + str(num) + "\n"
-
-#parser = Lark(quack_grammar, parser='lalr', transformer=BuildTree())
-#tree = parser.parse
+		el = Element("Int", f"\tconst {num} \n")
+		return el
 
 preprocessor = Lark(quack_grammar, parser='lalr', transformer=RewriteTree())
 preprocessor = preprocessor.parse
@@ -201,7 +185,8 @@ def main():
 	pre = preprocessor(s)
 	tree = Lark(quack_grammar, parser='lalr', transformer=BuildTree())
 	tree = tree.parse(pre)
-	print(tree)
+	print(tree, end="")
+	print("\treturn 0")
 
 if __name__ == '__main__':
     main()
