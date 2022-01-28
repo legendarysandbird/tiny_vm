@@ -150,6 +150,10 @@ class BuildTree(Transformer):
 		else:
 			typ = value.typ
 		el = Element(value.typ, f"{value.text}{arg.text}\tcall {typ}:{method.typ}\n")
+
+		if method.typ == "print":
+			el.text += "\tpop\n"
+
 		return el			
 	
 	def string(self, text):
@@ -187,7 +191,6 @@ preprocessor = preprocessor.parse
 def main():
 	s = sys.stdin.read()
 	pre = preprocessor(s)
-	print(pre)
 	tree = Lark(quack_grammar, parser='lalr', transformer=BuildTree())
 	tree = tree.parse(pre)
 	print(tree, end="")
