@@ -18,10 +18,10 @@ quack_grammar = """
 
 	lexp: NAME
 
-	assignment: lexp ":" typ "=" rexp
-		| lexp ":" typ "=" methodcall
+	typ: NAME
 
-	typ: NAME 					-> string
+	assignment: typ ":" typ "=" rexp
+		| typ ":" typ "=" methodcall
 
     ?sum: product
         | sum "+" product   	-> add
@@ -67,13 +67,13 @@ class RewriteTree(Transformer):
 	def assignment(self, name, typ, value):
 		var_list[str(name)] = str(typ)
 		return f"{name}: {typ} = {value}"
+	
+	def typ(self, name):
+		return name
 
 	def var(self, name):
 		return name
 	
-	def typ(self, typ):
-		return typ
-
 	def lexp(self, name):
 		return name
 	
@@ -125,19 +125,19 @@ class BuildTree(Transformer):
 		return text.text
 
 	def assignment(self, name, typ, value):
-		el = Element(value.typ, f"{value.text}\tstore {name.text}\n")
+		el = Element(value.typ, f"{value.text}\tstore {name.typ}\n")
 		return el
 		
 	def var(self, name):
-		el = Element(name.typ, f"\tload {name.text}\n")
+		el = Element(name.typ, f"\tload {name.typ}\n")
 		return el
 	
-	def typ(self, typ):
-		el = Element(typ.typ, typ.text)
-		return el
-
 	def lexp(self, name):
-		el = Element("String", name)
+		el = Element(name, "")
+		return el
+	
+	def typ(self, name):
+		el = Element(name, "")
 		return el
 	
 	def rexp(self, value):
@@ -145,7 +145,11 @@ class BuildTree(Transformer):
 		return el
 	
 	def methodcall(self, value, method, arg=Element("String", "")):
-		el = Element(value.typ, f"{value.text}{arg.text}\tcall {value.typ}:{method.text}\n")
+		if value.typ in var_list:
+			typ = var_list[value.typ]
+		else:
+			typ = value.typ
+		el = Element(value.typ, f"{value.text}{arg.text}\tcall {typ}:{method.typ}\n")
 		return el			
 	
 	def string(self, text):
@@ -183,6 +187,7 @@ preprocessor = preprocessor.parse
 def main():
 	s = sys.stdin.read()
 	pre = preprocessor(s)
+	print(pre)
 	tree = Lark(quack_grammar, parser='lalr', transformer=BuildTree())
 	tree = tree.parse(pre)
 	print(tree, end="")
