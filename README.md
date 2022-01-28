@@ -16,6 +16,3 @@ Also, use parser.py to transform from the arithmetic language into
 assembly code. To read from a file or save to a file you must redirect
 stdin and stdout to the files you want to use. parser.py should produce
 assembly code that can be assembled by assemble.py.
-
-A test file called test.quack is included in the unit_tests directory
-if you want to use it to test the parser.
