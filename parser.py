@@ -110,12 +110,14 @@ class RewriteTree(Transformer):
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
 	def __init__(self):
-		print(".class Sample:Obj\n\n.method $constructor")
-		print(".local ", end="")
-		li = []
-		for var in var_list:
-			li.append(var)
-		print(",".join(li))
+		print(".class Sample:Obj\n.method $constructor")
+		if len(var_list) > 0:
+			print(".local ", end="")
+			li = []
+			for var in var_list:
+				li.append(var)
+			print(",".join(li))
+		print("\tenter")
 	
 	def program(self, text1, text2):
 		return f"{text1}{text2}"
