@@ -196,6 +196,7 @@ def main():
 	tree = Lark(quack_grammar, parser='lalr', transformer=BuildTree())
 	tree = tree.parse(pre)
 	print(tree, end="")
+	print("\tconst nothing")
 	print("\treturn 0")
 
 if __name__ == '__main__':
