@@ -151,7 +151,13 @@ class BuildTree(Transformer):
 			typ = var_list[value.typ]
 		else:
 			typ = value.typ
-		el = Element(value.typ, f"{value.text}{arg.text}\tcall {typ}:{method.typ}\n")
+
+		roll = ""
+
+		if method.typ == "sub" or method.typ == "div":
+			roll = "\troll 1\n"
+
+		el = Element(value.typ, f"{value.text}{arg.text}{roll}\tcall {typ}:{method.typ}\n")
 
 		if method.typ == "print":
 			el.text += "\tpop\n"
