@@ -110,7 +110,8 @@ class RewriteTree(Transformer):
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
 	def __init__(self):
-		print(".class Sample:Obj\n.method $constructor")
+		filename = sys.argv[1].split(".")[0]
+		print(f".class {filename}:Obj\n.method $constructor")
 		if len(var_list) > 0:
 			print(".local ", end="")
 			li = []
@@ -197,7 +198,12 @@ preprocessor = preprocessor.parse
 
 
 def main():
-	s = sys.stdin.read()
+	if len(sys.argv) != 2:
+		print("Usage: python3 parser.py [name]")
+		return
+
+	with open(sys.argv[1]) as f:
+		s = f.read()
 	pre = preprocessor(s)
 	tree = Lark(quack_grammar, parser='lalr', transformer=BuildTree())
 	tree = tree.parse(pre)
