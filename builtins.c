@@ -161,6 +161,7 @@ obj_ref native_Obj_equals() {
     /* Checked downcast */
     assert_is_type(this, the_class_Obj);
     obj_ref other = (vm_fp - 1)->obj;
+
     assert_is_type(other, the_class_Obj);
     if (this == other) {
         return lit_true;
@@ -209,7 +210,8 @@ const class_ref the_class_Obj = &the_class_Obj_struct;
  *    STRING
  *    PRINT
  *    EQUALS
- *    FIXME: (Incomplete for now.)
+ *    PLUS
+ *    LESS
  * ==================
  */
 
@@ -314,6 +316,60 @@ vm_Word method_String_equals[] = {
         {.intval = 1}  // consume other
 };
 
+/* String:plus */
+obj_ref native_String_plus() {
+	obj_ref this = vm_fp->obj;
+	assert_is_type(this, the_class_String);
+	obj_String this_str = (obj_String) this;
+	obj_ref other = (vm_fp - 1)->obj;
+	assert_is_type(other, the_class_String);
+	obj_String other_str = (obj_String) other;
+	char* new_text = (char*)malloc(sizeof(this_str->text) + sizeof(other_str->text));
+	strcpy(new_text, this_str->text);
+	int offset = sizeof(this_str->text) / sizeof(char*);
+	strcpy(new_text + offset, other_str->text);
+	obj_ref created_string = new_string(new_text);
+	return created_string;
+}
+
+vm_Word method_String_plus[] = {
+	{.instr = vm_op_enter},
+	{.instr = vm_op_load},
+	{.intval = 0},
+	{.instr = vm_op_load},
+	{.intval = -1},
+	{.instr = vm_op_call_native},
+	{.native = native_String_plus},
+	{.instr = vm_op_return},
+	{.intval = 1}
+};
+
+/* String:less  */
+obj_ref native_String_less(void ) {
+    obj_ref this = vm_fp->obj;
+    assert_is_type(this, the_class_String);
+    obj_String this_str = (obj_String) this;
+    obj_ref other = (vm_fp - 1)->obj;
+    assert_is_type(other, the_class_String);
+    obj_String other_str = (obj_String) other;
+    if (strcmp(this_str->text, other_str->text) < 0) {
+        return lit_true;
+    } else {
+        return lit_false;
+    }
+}
+
+vm_Word method_String_less[] = {
+        {.instr = vm_op_enter},
+        {.instr = vm_op_load},
+        {.intval = 0},   // this
+        {.instr = vm_op_load},
+        {.intval = -1},  // other
+        {.instr = vm_op_call_native},
+        {.native = native_String_less},
+        {.instr = vm_op_return},
+        {.intval = 1}  // consume other
+};
 
 /* The String Class (a singleton) */
 struct  class_struct  the_class_String_struct = {
@@ -325,7 +381,9 @@ struct  class_struct  the_class_String_struct = {
         method_String_constructor,     /* Constructor */
         method_String_string,
         method_String_print,
-        method_String_equals
+        method_String_equals,
+		method_String_plus,
+		method_String_less
 };
 
 class_ref the_class_String = &the_class_String_struct;
