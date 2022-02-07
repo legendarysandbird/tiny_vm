@@ -10,6 +10,9 @@ quack_grammar = """
     statement: rexp ";"
         | assignment ";"
         | methodcall ";"
+        | loop
+
+    loop: "while" rexp "{" statement "}"
 
     methodcall: rexp "." lexp "(" ")"
         | rexp "." lexp "(" atom ")"
@@ -138,6 +141,10 @@ class BuildTree(Transformer):
             el.text += "\tpop\n"
 
         return el           
+
+    def loop(self, condition, block):
+        el = Element("String", f"\tjump end\nstart:\n{block}end:\n{condition.text}\tjump_if start\n")
+        return el
     
     def string(self, text):
         el = Element("String", f"\tconst {text}\n")
