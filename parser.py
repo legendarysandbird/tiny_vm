@@ -38,13 +38,13 @@ quack_grammar = """
         | sum "-" product       -> sub
 
     ?product: atom
-        | product "*" atom      -> mul
+        | product "*" atom      -> mult
         | product "/" atom      -> div
 
     ?atom: INT                  -> number
          | "-" atom             -> neg
          | lexp                 -> var
-         | "(" sum ")"          -> parens
+         | "(" sum ")"
          | "(" methodcall ")"
          | STRING               -> string
 
@@ -56,13 +56,145 @@ quack_grammar = """
     %ignore WS
 """
 
-class Element:
-    def __init__(self, typ, text):
+# Abstract Base Class
+
+class ASTNode:
+    def get_assembly(self):
+        NotImplementedError(f"{self.__name} should have a get_assembly method")
+
+class Program(ASTNode):
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+
+    def get_assembly(self):
+        left = self.left.get_assembly()
+        right = self.right.get_assembly()
+        return f"{left}{right}"
+
+# Control Flow
+
+class Conditional(ASTNode):
+    def __init__(self, condition, block):
+        self.condition = condition
+        self.block = block
+
+    def get_assembly(self):
+        condition = self.condition.get_assembly()
+        return f"{condition}\tjump_if block1\n\tjump {next_jump}{part2.text}{part3.text}end:\n"
+
+# Arithmetic Operations
+
+class BinOp(ASTNode):
+    def __init__(self, op, left, right):
+        self.op = op
+        self.left = left
+        self.right = right
+        self.typ = "Int"
+
+    def get_assembly(self):
+        left = self.left.get_assembly()
+        right = self.right.get_assembly()
+        typ = self.typ
+        op = self.op
+        return f"{left}{right}\tcall {typ}:{op}\n"
+
+class Negate(ASTNode):
+    def __init__(self, val):
+        self.val = val
+        self.typ = "Int"
+
+    def get_assembly(self):
+        val = self.val.get_assembly()
+        typ = self.typ
+        el = Element(a.typ, f"\tconst 0\n{a.text}\tcall {a.typ}:sub\n")
+        return f"\tconst 0\n{val}\tcall {typ}:sub\n"
+
+class Methodcall(ASTNode):
+    def __init__(self, val, method, args):
+        self.typ = val.get_typ()
+        self.method = method
+        self.val = val
+        self.args = args
+
+    def get_assembly(self):
+        typ = self.typ
+        method = self.method
+        val = self.val.get_assembly()
+        arg = self.args
+        if arg != "":
+            arg = self.args.get_assembly()
+        roll = ""
+
+        if method == "sub" or method == "div":
+            roll = "\troll 1\n"
+
+        text = f"{val}{arg}{roll}\tcall {typ}:{method}\n"
+
+        if method == "print":
+            text += "\tpop\n"
+
+        return text
+
+    def get_typ(self):
+        return self.typ
+
+# Constants
+
+class Const(ASTNode):
+    def __init__(self, val):
+        self.val = val
+
+    def get_assembly(self):
+        val = self.val
+        return f"\tconst {val}\n"
+
+    def get_typ(self):
+        return self.typ
+
+class Number(Const):
+    def __init__(self, val):
+        super().__init__(val)
+        self.typ = "Int"
+
+class String(Const):
+    def __init__(self, val):
+        super().__init__(val)
+        self.typ = "String"
+
+# Variables
+
+class Var(ASTNode):
+    def __init__(self, name, typ, val):
+        self.name = name
         self.typ = typ
-        self.text = text
+        self.val = val
+
+    def set_typ(self, typ):
+        self.typ = typ
+
+    def set_val(self, val):
+        self.val = val
+
+    def get_assembly(self):
+        name = self.name
+        return f"\tload {name}\n"
+
+    def get_typ(self):
+        return self.typ
+
+class Assignment(ASTNode):
+    def __init__(self, name, typ, val):
+        self.name = name
+        self.typ = typ
+        self.val = val
+        var_list[self.name].set_typ(typ)
+        var_list[self.name].set_val(val)
     
-    def __str__(self):
-        return f"#Type: {self.typ} | Text: {self.text}#"
+    def get_assembly(self):
+        val = self.val.get_assembly()
+        name = self.name
+        return f"{val}\tstore {name}\n"
 
 var_list = {}
 
@@ -81,14 +213,14 @@ class RewriteTree(Transformer):
     def sub(self, a, b):
         return self._arithmetic(a, b, "sub")
 
-    def mul(self, a, b):
-        return self._arithmetic(a, b, "mul")
+    def mult(self, a, b):
+        return self._arithmetic(a, b, "mult")
 
     def div(self, a, b):
         return self._arithmetic(a, b, "div")
 
     def assignment(self, name, typ, value):
-        var_list[str(name.children[0])] = str(typ.children[0])
+        var_list[str(name.children[0])] = Var(str(name.children[0]), str(typ.children[0]), str(value.children[0].children[0]))
         return Tree(Token('RULE', 'assignment'), [name, typ, value])
 
 @v_args(inline=True)    # Affects the signatures of the methods
@@ -104,94 +236,61 @@ class BuildTree(Transformer):
             print(",".join(li))
         print("\tenter")
     
-    def program(self, text1, text2):
-        return f"{text1}{text2}"
+    def program(self, left, right):
+        return Program(left, right)
     
-    def statement(self, text):
-        el = Element(text.typ, text.text)
-        return text.text
+    def statement(self, node):
+        return node
 
-    def assignment(self, name, typ, value):
-        el = Element(value.typ, f"{value.text}\tstore {name.typ}\n")
-        return el
-        
-    def var(self, name):
-        el = Element(name.typ, f"\tload {name.typ}\n")
-        return el
-    
     def lexp(self, name):
-        el = Element(name, "")
-        return el
+        return str(name)
     
     def typ(self, name):
-        el = Element(name, "")
-        return el
+        return str(name)
+
+    def assignment(self, name, typ, val):
+        return Assignment(name, typ, val)
+
+    def var(self, name):
+        return var_list[str(name)]
     
-    def rexp(self, value):
-        el = Element(value.typ, value.text)
-        return el
+    def rexp(self, math_node):
+        return math_node
+
+    def number(self, val):
+        return Number(val)
+
+    def string(self, text):
+        return String(text)
+
+    def methodcall(self, val, method, args=""):
+        return Methodcall(val, method, args)
     
-    def methodcall(self, value, method, arg=Element("String", "")):
-        if value.typ in var_list:
-            typ = var_list[value.typ]
-        else:
-            typ = value.typ
-
-        roll = ""
-
-        if method.typ == "sub" or method.typ == "div":
-            roll = "\troll 1\n"
-
-        el = Element(value.typ, f"{value.text}{arg.text}{roll}\tcall {typ}:{method.typ}\n")
-
-        if method.typ == "print":
-            el.text += "\tpop\n"
-
-        return el           
-
+'''
     def loop(self, condition, block):
         el = Element("String", f"\tjump end\nstart:\n{block}end:\n{condition.text}\tjump_if start\n")
         return el
 
     def condif(self, condition, block, part2 = Element("None", ""), part3 = Element("None", "")):
-        el = Element("String", f"{condition.text}\tjump_if block1\n\tjump block2{part2.text}{part3.text}end:\n") 
+        next_jump = "end"
+
+        if part2.typ != "None":
+            next_jump = "block2"
+        elif part3.typ != "None":
+            next_jump = "block3" 
+
+        el = Element("String", f"{condition.text}\tjump_if block1\n\tjump {next_jump}{part2.text}{part3.text}end:\n") 
         return el
 
-    def condelif(self, condition, block, part2 = Element("None", ""), part3 = Element("None", "")):
+    def condelif(self, condition, block, part2 = Element("None", "")):
+
         el = Element("String", f"{condition.text}\tjump_if block2\n\tjump block3{part3.text}\n")
         return el
 
     def condelse(self, block):
         el = Element("String", f"{block.text}")
         return el
-    
-    def string(self, text):
-        el = Element("String", f"\tconst {text}\n")
-        return el
-
-    def plus(self, a, b):
-        el = Element(a.typ, f"{a.text}{b.text}\tcall {a.typ}:plus\n")
-        return el
-
-    def sub(self, a, b):
-        el = Element(a.typ, f"{a.text}{b.text}\tcall {a.typ}:sub\n")
-        return el
-
-    def mul(self, a, b):
-        el = Element(a.typ, f"{a.text}{b.text}\tcall {a.typ}:mult\n")
-        return el
-
-    def div(self, a, b):
-        el = Element(a.typ, f"{a.text}{b.text}\tcall {a.typ}:div\n")
-        return el
-
-    def neg(self, a):
-        el = Element(a.typ, f"\tconst 0\n{a.text}\tcall {a.typ}:sub\n")
-        return el
-
-    def number(self, num):
-        el = Element("Int", f"\tconst {num} \n")
-        return el
+'''
 
 preprocessor = Lark(quack_grammar, parser='lalr', transformer=RewriteTree())
 preprocessor = preprocessor.parse
@@ -207,6 +306,7 @@ def main():
     
     pre = preprocessor(s)
     tree = BuildTree().transform(pre)
+    tree = tree.get_assembly()
 
     print(tree, end="")
     print("\tconst nothing")
