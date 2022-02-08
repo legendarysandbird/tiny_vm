@@ -11,7 +11,7 @@ quack_grammar = """
         | assignment ";"
         | methodcall ";"
         | loop ";"
-        | condif
+        | condif ";"
 
     loop: "while" "(" rexp ")" "{" program "}"
 
@@ -78,14 +78,56 @@ class Program(ASTNode):
 
 # Control Flow
 
-class Conditional(ASTNode):
-    def __init__(self, condition, block):
+class If(ASTNode):
+    def __init__(self, condition, block, elif_node, else_node):
         self.condition = condition
         self.block = block
+        self.elif_node = elif_node
+        self.else_node = else_node
 
     def get_assembly(self):
         condition = self.condition.get_assembly()
-        return f"{condition}\tjump_if block1\n\tjump {next_jump}{part2.text}{part3.text}end:\n"
+        block = self.block.get_assembly()
+        next_label = "end1"
+
+        elif_asm = ""
+        else_asm = ""
+
+        if self.else_node is not None:
+            else_asm = self.else_node.get_assembly()
+            next_label = "else1"
+
+        if self.elif_node is not None:
+            elif_asm = self.elif_node.get_assembly(next_label)
+            next_label = "elif1"
+
+        return f"{condition}\tjump_ifnot {next_label}\n{block}\tjump end1\n{elif_asm}{else_asm}end1:\n"
+
+class Elif(ASTNode):
+    def __init__(self, condition, block, elif_node):
+        self.condition = condition
+        self.block = block
+        self.elif_node = elif_node
+
+    def get_assembly(self, next_label):
+        condition = self.condition.get_assembly()
+        block = self.block.get_assembly()
+        
+        elif_asm = ""
+ 
+        if self.elif_node is not None:
+            elif_asm = self.elif_node.get_assembly(next_label)
+
+        return f"elif1:\n{condition}\tjump_ifnot {next_label}\n{block}\tjump end1\n{elif_asm}"
+        
+
+class Else(ASTNode):
+    def __init__(self, block):
+        self.block = block
+
+    def get_assembly(self):
+        block = self.block.get_assembly()
+        return f"else1:\n{block}"
 
 class Loop(ASTNode):
     def __init__(self, condition, block):
@@ -290,27 +332,14 @@ class BuildTree(Transformer):
     def loop(self, condition, block):
         return Loop(condition, block)
 
-'''
-    def condif(self, condition, block, part2 = Element("None", ""), part3 = Element("None", "")):
-        next_jump = "end"
+    def condif(self, condition, block, elif_node=None, else_node=None):
+        return If(condition, block, elif_node, else_node)
 
-        if part2.typ != "None":
-            next_jump = "block2"
-        elif part3.typ != "None":
-            next_jump = "block3" 
-
-        el = Element("String", f"{condition.text}\tjump_if block1\n\tjump {next_jump}{part2.text}{part3.text}end:\n") 
-        return el
-
-    def condelif(self, condition, block, part2 = Element("None", "")):
-
-        el = Element("String", f"{condition.text}\tjump_if block2\n\tjump block3{part3.text}\n")
-        return el
+    def condelif(self, condition, block, elif_node=None):
+        return Elif(condition, block, elif_node)
 
     def condelse(self, block):
-        el = Element("String", f"{block.text}")
-        return el
-'''
+        return Else(block)
 
 preprocessor = Lark(quack_grammar, parser='lalr', transformer=RewriteTree())
 preprocessor = preprocessor.parse
