@@ -10,10 +10,10 @@ quack_grammar = """
     statement: rexp ";"
         | assignment ";"
         | methodcall ";"
-        | loop
+        | loop ";"
         | condif
 
-    loop: "while" rexp "{" statement "}"
+    loop: "while" "(" rexp ")" "{" program "}"
 
     condif: "if" rexp "{" statement "}" [condelif] [condelse]
 
@@ -37,9 +37,13 @@ quack_grammar = """
         | sum "+" product       -> plus
         | sum "-" product       -> sub
 
-    ?product: atom
-        | product "*" atom      -> mult
-        | product "/" atom      -> div
+    ?product: relation
+        | product "*" relation  -> mult
+        | product "/" relation  -> div
+
+    ?relation: atom
+        | relation "<" atom     -> lt
+        | relation "==" atom    -> eq
 
     ?atom: INT                  -> number
          | "-" atom             -> neg
@@ -82,6 +86,17 @@ class Conditional(ASTNode):
     def get_assembly(self):
         condition = self.condition.get_assembly()
         return f"{condition}\tjump_if block1\n\tjump {next_jump}{part2.text}{part3.text}end:\n"
+
+class Loop(ASTNode):
+    def __init__(self, condition, block):
+        self.condition = condition
+        self.block = block
+
+    def get_assembly(self):
+        condition = self.condition.get_assembly()
+        block = self.block.get_assembly()
+
+        return f"\tjump end\nstart:\n{block}end:\n{condition}\tjump_if start\n"
 
 # Arithmetic Operations
 
@@ -126,7 +141,7 @@ class Methodcall(ASTNode):
             arg = self.args.get_assembly()
         roll = ""
 
-        if method == "sub" or method == "div":
+        if method == "sub" or method == "div" or method == "less":
             roll = "\troll 1\n"
 
         text = f"{val}{arg}{roll}\tcall {typ}:{method}\n"
@@ -219,6 +234,12 @@ class RewriteTree(Transformer):
     def div(self, a, b):
         return self._arithmetic(a, b, "div")
 
+    def eq(self, a, b):
+        return self._arithmetic(a, b, "equals")
+
+    def lt(self, a, b):
+        return self._arithmetic(a, b, "less")
+
     def assignment(self, name, typ, value):
         var_list[str(name.children[0])] = Var(str(name.children[0]), str(typ.children[0]), str(value.children[0].children[0]))
         return Tree(Token('RULE', 'assignment'), [name, typ, value])
@@ -266,11 +287,10 @@ class BuildTree(Transformer):
     def methodcall(self, val, method, args=""):
         return Methodcall(val, method, args)
     
-'''
     def loop(self, condition, block):
-        el = Element("String", f"\tjump end\nstart:\n{block}end:\n{condition.text}\tjump_if start\n")
-        return el
+        return Loop(condition, block)
 
+'''
     def condif(self, condition, block, part2 = Element("None", ""), part3 = Element("None", "")):
         next_jump = "end"
 
