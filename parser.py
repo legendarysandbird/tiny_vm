@@ -11,8 +11,15 @@ quack_grammar = """
         | assignment ";"
         | methodcall ";"
         | loop
+        | condif
 
     loop: "while" rexp "{" statement "}"
+
+    condif: "if" rexp "{" statement "}" [condelif] [condelse]
+
+    condelif: "elif" rexp "{" statement "}" [condelif]
+
+    condelse: "else" "{" statement "}"
 
     methodcall: rexp "." lexp "(" ")"
         | rexp "." lexp "(" atom ")"
@@ -144,6 +151,18 @@ class BuildTree(Transformer):
 
     def loop(self, condition, block):
         el = Element("String", f"\tjump end\nstart:\n{block}end:\n{condition.text}\tjump_if start\n")
+        return el
+
+    def condif(self, condition, block, part2 = Element("None", ""), part3 = Element("None", "")):
+        el = Element("String", f"{condition.text}\tjump_if block1\n\tjump block2{part2.text}{part3.text}end:\n") 
+        return el
+
+    def condelif(self, condition, block, part2 = Element("None", ""), part3 = Element("None", "")):
+        el = Element("String", f"{condition.text}\tjump_if block2\n\tjump block3{part3.text}\n")
+        return el
+
+    def condelse(self, block):
+        el = Element("String", f"{block.text}")
         return el
     
     def string(self, text):
