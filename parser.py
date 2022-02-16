@@ -95,7 +95,7 @@ class If(ASTNode):
         global if_count, elif_count, else_count
         condition = self.condition.get_assembly()
         block = self.block.get_assembly()
-        next_label = f"end{if_count}"
+        next_label = f"if_end{if_count}"
 
         elif_asm = ""
         else_asm = ""
@@ -108,7 +108,7 @@ class If(ASTNode):
             elif_asm = self.elif_node.get_assembly(next_label)
             next_label = f"elif{elif_count}"
 
-        msg = f"{condition}\tjump_ifnot {next_label}\n{block}\tjump end{if_count}\n{elif_asm}{else_asm}end{if_count}:\n"
+        msg = f"{condition}\tjump_ifnot {next_label}\n{block}\tjump if_end{if_count}\n{elif_asm}{else_asm}if_end{if_count}:\n"
         if_count += 1
         elif_count += 1
         else_count += 1
@@ -138,8 +138,10 @@ class Else(ASTNode):
         self.block = block
 
     def get_assembly(self):
+        global else_count
         block = self.block.get_assembly()
-        return f"else1:\n{block}"
+        
+        return f"else{else_count}:\n{block}"
 
 class Loop(ASTNode):
     def __init__(self, condition, block):
