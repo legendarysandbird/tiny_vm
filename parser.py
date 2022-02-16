@@ -1,12 +1,6 @@
 import sys
 from lark import Lark, Transformer, v_args, Tree, Token
 
-# Provide unique names to all labels
-if_count = 0
-elif_count = 0
-else_count = 0
-while_count = 0
-
 quack_grammar = """
     ?start: program
 
@@ -66,6 +60,13 @@ quack_grammar = """
     %ignore WS
 """
 
+# Provide unique names to all labels
+if_count = 0
+elif_count = 0
+elif_inner_count = 0
+else_count = 0
+while_count = 0
+
 # Abstract Base Class
 
 class ASTNode:
@@ -92,7 +93,7 @@ class If(ASTNode):
         self.else_node = else_node
 
     def get_assembly(self):
-        global if_count, elif_count, else_count
+        global if_count, elif_count, elif_inner_count, else_count
         condition = self.condition.get_assembly()
         block = self.block.get_assembly()
         next_label = f"if_end{if_count}"
@@ -105,13 +106,14 @@ class If(ASTNode):
             next_label = f"else{else_count}"
 
         if self.elif_node is not None:
-            elif_asm = self.elif_node.get_assembly(next_label)
-            next_label = f"elif{elif_count}"
+            elif_asm = self.elif_node.get_assembly(next_label, next_label)
+            next_label = f"elif{elif_count}v{elif_inner_count - 1}"
 
         msg = f"{condition}\tjump_ifnot {next_label}\n{block}\tjump if_end{if_count}\n{elif_asm}{else_asm}if_end{if_count}:\n"
         if_count += 1
         elif_count += 1
         else_count += 1
+        elif_inner_count = 0
         
         return msg
 
@@ -121,16 +123,23 @@ class Elif(ASTNode):
         self.block = block
         self.elif_node = elif_node
 
-    def get_assembly(self, next_label):
+    def get_assembly(self, next_label, final_label):
+        global elif_count, elif_inner_count
+
         condition = self.condition.get_assembly()
         block = self.block.get_assembly()
         
         elif_asm = ""
  
-        if self.elif_node is not None:
-            elif_asm = self.elif_node.get_assembly(next_label)
+        if self.elif_node is None:
+            next_label = final_label
+        else:
+            next_label = f"elif{elif_count}v{elif_inner_count}"
+            elif_asm = self.elif_node.get_assembly(next_label, final_label)
 
-        return f"elif1:\n{condition}\tjump_ifnot {next_label}\n{block}\tjump end1\n{elif_asm}"
+        msg = f"elif{elif_count}v{elif_inner_count}:\n{condition}\tjump_ifnot {next_label}\n{block}\tjump if_end{if_count}\n{elif_asm}"
+        elif_inner_count += 1
+        return msg
         
 
 class Else(ASTNode):
