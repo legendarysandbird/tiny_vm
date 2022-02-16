@@ -1,6 +1,12 @@
 import sys
 from lark import Lark, Transformer, v_args, Tree, Token
 
+# Provide unique names to all labels
+if_count = 0
+elif_count = 0
+else_count = 0
+while_count = 0
+
 quack_grammar = """
     ?start: program
 
@@ -86,22 +92,28 @@ class If(ASTNode):
         self.else_node = else_node
 
     def get_assembly(self):
+        global if_count, elif_count, else_count
         condition = self.condition.get_assembly()
         block = self.block.get_assembly()
-        next_label = "end1"
+        next_label = f"end{if_count}"
 
         elif_asm = ""
         else_asm = ""
 
         if self.else_node is not None:
             else_asm = self.else_node.get_assembly()
-            next_label = "else1"
+            next_label = f"else{else_count}"
 
         if self.elif_node is not None:
             elif_asm = self.elif_node.get_assembly(next_label)
-            next_label = "elif1"
+            next_label = f"elif{elif_count}"
 
-        return f"{condition}\tjump_ifnot {next_label}\n{block}\tjump end1\n{elif_asm}{else_asm}end1:\n"
+        msg = f"{condition}\tjump_ifnot {next_label}\n{block}\tjump end{if_count}\n{elif_asm}{else_asm}end{if_count}:\n"
+        if_count += 1
+        elif_count += 1
+        else_count += 1
+        
+        return msg
 
 class Elif(ASTNode):
     def __init__(self, condition, block, elif_node):
@@ -135,10 +147,15 @@ class Loop(ASTNode):
         self.block = block
 
     def get_assembly(self):
+        global while_count
+
         condition = self.condition.get_assembly()
         block = self.block.get_assembly()
 
-        return f"\tjump end\nstart:\n{block}end:\n{condition}\tjump_if start\n"
+        msg = f"\tjump while_end{while_count}\nwhile_start{while_count}:\n{block}while_end{while_count}:\n{condition}\tjump_if while_start{while_count}\n"
+        while_count += 1
+
+        return msg
 
 # Arithmetic Operations
 
