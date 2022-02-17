@@ -77,8 +77,47 @@ while_count = 0
 # Methods
 methods = {
         "Int": {"plus": "Int", "sub": "Int", "mult": "Int", "div": "Int", "less": "Boolean", "equals": "Boolean", "print": "Nothing", "string": "String"},
-        "String": {"string": "String", "print": "Nothing", "equals": "Boolean", "less": "Boolean", "plus": "String"}
+        "String": {"string": "String", "print": "Nothing", "equals": "Boolean", "less": "Boolean", "plus": "String"},
+        "Object": {"string": "String", "print": "Nothing", "equals": "Boolean"}
         }
+
+# Possible types
+
+class Type:
+    def __init__(self, name, parent, children):
+        self.name = name
+        self.parent = parent
+        self.children = children
+
+    def __str__(self):
+        return f"{self.name.upper()}"
+
+    def __repr__(self):
+        return f"Type({self.name}, {self.parent}, {self.children})"
+
+    def get_common_ancestor(self, other):
+        type1 = self
+        type2 = other
+        while type1.name != type2.name:
+            if type1.name == "Object" and type2.name == "Object":
+                break
+            elif type2.name == "Object":
+                type1 = type1.parent
+                type2 = other
+            else:
+                type2 = type2.parent
+
+        return type1.name
+
+Object = Type("Object", None, ["Int", "String"])
+String = Type("String", Object, [])
+Int = Type("Int", Object, [])
+types = [
+        Object,
+        String,
+        Int
+        ]
+
 
 # Abstract Base Class
 
@@ -210,13 +249,28 @@ class Negate(ASTNode):
 
 class Methodcall(ASTNode):
     def __init__(self, val, method, args):
-        self.typ = methods[val.get_typ()][method]
+        for typ in val.get_typ():
+            self.typ = methods[typ.name][method]
         self.method = method
         self.val = val
         self.args = args
 
     def get_assembly(self):
-        typ = self.val.get_typ()
+        typs = self.val.get_typ()
+        typ = "Unknown"
+        while len(typs) > 1:
+            ancestor = typs[0].get_common_ancestor(typs[1])
+            if len(typs) == 2:
+                typs = ancestor
+            else:
+                typs = [ancestor] + typs[2:]
+
+        for cur_typ in typs:
+            typ = cur_typ
+            if self.method not in methods[typ.name]:
+                print(f"{typ} does not have a {method} method!")
+                sysv.exit(1)
+
         method = self.method
         val = self.val.get_assembly()
         arg = self.args
@@ -235,7 +289,9 @@ class Methodcall(ASTNode):
         return text
 
     def get_typ(self):
-        return self.typ
+        for cur_typ in types:
+            if self.typ.name == cur_typ.name:
+                return cur_typ
 
 # Constants
 
@@ -253,23 +309,29 @@ class Const(ASTNode):
 class Number(Const):
     def __init__(self, val):
         super().__init__(val)
-        self.typ = "Int"
+        self.typ = set()
+        for typ in types:
+            if typ.name == "Int":
+                self.typ.add(typ)
 
 class String(Const):
     def __init__(self, val):
         super().__init__(val)
-        self.typ = "String"
+        self.typ = set()
+        for typ in types:
+            if typ.name == "String":
+                self.typ.add(typ)
 
 # Variables
 
 class Var(ASTNode):
     def __init__(self, name, typ, val):
         self.name = name
-        self.typ = typ
+        self.typs = set(typ)
         self.val = val
 
     def set_typ(self, typ):
-        self.typ = typ
+        self.typs.union(typ)
 
     def set_val(self, val):
         self.val = val
@@ -279,7 +341,7 @@ class Var(ASTNode):
         return f"\tload {name}\n"
 
     def get_typ(self):
-        return self.typ
+        return self.typs
 
 class Assignment(ASTNode):
     def __init__(self, name, typ, val):
@@ -324,11 +386,22 @@ class RewriteTree(Transformer):
         return self._arithmetic(a, b, "less")
 
     def typed(self, name, typ, value):
-        var_list[str(name.children[0])] = Var(str(name.children[0]), str(typ.children[0]), str(value.children[0].children[0]))
+        for cur_typ in types:
+            if cur_typ.name == str(typ.children[0]):
+                typ = cur_typ
+                break
+
+        cur_types = set()
+        cur_types.add(typ)
+
+        if str(name.children[0]) not in var_list:
+            var_list[str(name.children[0])] = Var(str(name.children[0]), cur_types, str(value.children[0].children[0]))
+        else:
+            var_list[str(name.children[0])].typ.add(typ)
         return Tree(Token('RULE', 'typed'), [name, typ, value])
     
     def untyped(self, name, value):
-        var_list[str(name.children[0])] = Var(str(name.children[0]), "Unknown", str(value.children[0].children[0]))
+        var_list[str(name.children[0])] = Var(str(name.children[0]), set(), str(value.children[0].children[0]))
         return Tree(Token('RULE', 'untyped'), [name, value])
 
 @v_args(inline=True)    # Affects the signatures of the methods
@@ -357,11 +430,18 @@ class BuildTree(Transformer):
         return str(name)
 
     def typed(self, name, typ, val):
-        return Assignment(name, typ, val)
+        typs = set()
+        typs.add(typ)
+        return Assignment(name, typs, val)
 
     def untyped(self, name, val):
         typ = val.get_typ()
-        var_list[name].typ = typ
+        for cur_typ in types:
+            if cur_typ.name == typ:
+                typ = cur_typ
+                break
+
+        var_list[name].set_typ(typ)
         return Assignment(name, typ, val)
 
     def var(self, name):
