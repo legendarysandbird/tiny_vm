@@ -30,8 +30,14 @@ quack_grammar = """
 
     typ: NAME
 
-    assignment: typ ":" typ "=" rexp
+    ?assignment: typed
+        | untyped
+
+    typed: typ ":" typ "=" rexp
         | typ ":" typ "=" methodcall
+
+    untyped: typ "=" rexp
+        | typ "=" methodcall
 
     ?sum: product
         | sum "+" product       -> plus
@@ -310,9 +316,13 @@ class RewriteTree(Transformer):
     def lt(self, a, b):
         return self._arithmetic(a, b, "less")
 
-    def assignment(self, name, typ, value):
+    def typed(self, name, typ, value):
         var_list[str(name.children[0])] = Var(str(name.children[0]), str(typ.children[0]), str(value.children[0].children[0]))
-        return Tree(Token('RULE', 'assignment'), [name, typ, value])
+        return Tree(Token('RULE', 'typed'), [name, typ, value])
+    
+    def untyped(self, name, value):
+        var_list[str(name.children[0])] = Var(str(name.children[0]), "Unknown", str(value.children[0].children[0]))
+        return Tree(Token('RULE', 'untyped'), [name, value])
 
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
@@ -339,7 +349,12 @@ class BuildTree(Transformer):
     def typ(self, name):
         return str(name)
 
-    def assignment(self, name, typ, val):
+    def typed(self, name, typ, val):
+        return Assignment(name, typ, val)
+
+    def untyped(self, name, val):
+        typ = val.get_typ()
+        var_list[name].typ = typ
         return Assignment(name, typ, val)
 
     def var(self, name):
