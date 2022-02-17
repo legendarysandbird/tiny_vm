@@ -78,7 +78,7 @@ while_count = 0
 methods = {
         "Int": {"plus": "Int", "sub": "Int", "mult": "Int", "div": "Int", "less": "Boolean", "equals": "Boolean", "print": "Nothing", "string": "String"},
         "String": {"string": "String", "print": "Nothing", "equals": "Boolean", "less": "Boolean", "plus": "String"},
-        "Object": {"string": "String", "print": "Nothing", "equals": "Boolean"}
+        "Obj": {"string": "String", "print": "Nothing", "equals": "Boolean"}
         }
 
 # Possible types
@@ -99,21 +99,21 @@ class Type:
         type1 = self
         type2 = other
         while type1.name != type2.name:
-            if type1.name == "Object" and type2.name == "Object":
+            if type1.name == "Obj" and type2.name == "Obj":
                 break
-            elif type2.name == "Object":
+            elif type2.name == "Obj":
                 type1 = type1.parent
                 type2 = other
             else:
                 type2 = type2.parent
 
-        return type1.name
+        return type1
 
-Object = Type("Object", None, ["Int", "String"])
-String = Type("String", Object, [])
-Int = Type("Int", Object, [])
+Obj = Type("Obj", None, ["Int", "String"])
+String = Type("String", Obj, [])
+Int = Type("Int", Obj, [])
 types = [
-        Object,
+        Obj,
         String,
         Int
         ]
@@ -249,27 +249,30 @@ class Negate(ASTNode):
 
 class Methodcall(ASTNode):
     def __init__(self, val, method, args):
+        self.typ = set()
         for typ in val.get_typ():
-            self.typ = methods[typ.name][method]
+            assert method in methods[typ.name], f"Type Checker: {typ} does not have a {method} method!"
+            new_typ = methods[typ.name][method]
+            break
+        for typ in types:
+            if new_typ == typ.name:
+                self.typ.add(typ)
         self.method = method
         self.val = val
         self.args = args
+        
 
     def get_assembly(self):
-        typs = self.val.get_typ()
+        typs = list(self.val.get_typ())
         typ = "Unknown"
         while len(typs) > 1:
             ancestor = typs[0].get_common_ancestor(typs[1])
             if len(typs) == 2:
-                typs = ancestor
+                typs = [ancestor]
             else:
                 typs = [ancestor] + typs[2:]
 
-        for cur_typ in typs:
-            typ = cur_typ
-            if self.method not in methods[typ.name]:
-                print(f"{typ} does not have a {method} method!")
-                sysv.exit(1)
+        typ = typs[0]
 
         method = self.method
         val = self.val.get_assembly()
@@ -281,7 +284,7 @@ class Methodcall(ASTNode):
         if method == "sub" or method == "div" or method == "less":
             roll = "\troll 1\n"
 
-        text = f"{val}{arg}{roll}\tcall {typ}:{method}\n"
+        text = f"{val}{arg}{roll}\tcall {typ.name}:{method}\n"
 
         if method == "print":
             text += "\tpop\n"
@@ -289,9 +292,7 @@ class Methodcall(ASTNode):
         return text
 
     def get_typ(self):
-        for cur_typ in types:
-            if self.typ.name == cur_typ.name:
-                return cur_typ
+        return self.typ
 
 # Constants
 
@@ -327,11 +328,11 @@ class String(Const):
 class Var(ASTNode):
     def __init__(self, name, typ, val):
         self.name = name
-        self.typs = set(typ)
+        self.typs = typ
         self.val = val
 
     def set_typ(self, typ):
-        self.typs.union(typ)
+        self.typs = self.typs.union(typ)
 
     def set_val(self, val):
         self.val = val
