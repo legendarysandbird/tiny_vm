@@ -250,13 +250,14 @@ class Negate(ASTNode):
 class Methodcall(ASTNode):
     def __init__(self, val, method, args):
         self.typ = set()
-        for typ in val.get_typ():
-            assert method in methods[typ.name], f"Type Checker: {typ} does not have a {method} method!"
-            new_typ = methods[typ.name][method]
-            break
-        for typ in types:
-            if new_typ == typ.name:
-                self.typ.add(typ)
+        if len(val.get_typ()) > 0:
+            for typ in val.get_typ():
+                assert method in methods[typ.name], f"Type Checker: {typ} does not have a {method} method!"
+                new_typ = methods[typ.name][method]
+                break
+            for typ in types:
+                if new_typ == typ.name:
+                    self.typ.add(typ)
         self.method = method
         self.val = val
         self.args = args
@@ -330,6 +331,7 @@ class Var(ASTNode):
         self.name = name
         self.typs = typ
         self.val = val
+        self.valid = False
 
     def set_typ(self, typ):
         self.typs = self.typs.union(typ)
@@ -337,7 +339,11 @@ class Var(ASTNode):
     def set_val(self, val):
         self.val = val
 
+    def set_valid(self):
+        self.valid = True
+
     def get_assembly(self):
+        assert self.valid, f"Variable {self.name} has not been initialized before use"
         name = self.name
         return f"\tload {name}\n"
 
@@ -351,8 +357,9 @@ class Assignment(ASTNode):
         self.val = val
         var_list[self.name].set_typ(typ)
         var_list[self.name].set_val(val)
-    
+
     def get_assembly(self):
+        var_list[self.name].set_valid()
         val = self.val.get_assembly()
         name = self.name
         return f"{val}\tstore {name}\n"
