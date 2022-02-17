@@ -67,11 +67,18 @@ quack_grammar = """
 """
 
 # Provide unique names to all labels
+
 if_count = 0
 elif_count = 0
 elif_inner_count = 0
 else_count = 0
 while_count = 0
+
+# Methods
+methods = {
+        "Int": {"plus": "Int", "sub": "Int", "mult": "Int", "div": "Int", "less": "Boolean", "equals": "Boolean", "print": "Nothing", "string": "String"},
+        "String": {"string": "String", "print": "Nothing", "equals": "Boolean", "less": "Boolean", "plus": "String"}
+        }
 
 # Abstract Base Class
 
@@ -203,13 +210,13 @@ class Negate(ASTNode):
 
 class Methodcall(ASTNode):
     def __init__(self, val, method, args):
-        self.typ = val.get_typ()
+        self.typ = methods[val.get_typ()][method]
         self.method = method
         self.val = val
         self.args = args
 
     def get_assembly(self):
-        typ = self.typ
+        typ = self.val.get_typ()
         method = self.method
         val = self.val.get_assembly()
         arg = self.args
