@@ -132,9 +132,6 @@ class ASTNode:
     def get_assembly(self):
         NotImplementedError(f"{self.__name} should have a get_assembly method")
 
-    def update_typs(self, arg):
-        return arg
-
 class Program(ASTNode):
     def __init__(self, left, right):
         self.left = left
@@ -144,6 +141,11 @@ class Program(ASTNode):
         left = self.left.get_assembly()
         right = self.right.get_assembly()
         return f"{left}{right}"
+
+    def update_typs(self):
+        left = self.left.update_typs()
+        right = self.right.update_typs()
+        return left or right
 
 # Control Flow
 
@@ -179,6 +181,23 @@ class If(ASTNode):
         
         return msg
 
+    def update_typs(self):
+        cond = self.condition.update_typs()
+        block = self.block.update_typs()
+        if self.elif_node is not None:
+            elf = self.elif_node.update_typs()
+        elif self.else_node is not None:
+            els = self.else_node.update_typs()
+
+        if cond:
+            return cond
+        elif block:
+            return block
+        elif elf:
+            return elf
+        elif els:
+            return els
+
 class Elif(ASTNode):
     def __init__(self, condition, block, elif_node):
         self.condition = condition
@@ -202,7 +221,19 @@ class Elif(ASTNode):
         msg = f"elif{elif_count}v{elif_inner_count}:\n{condition}\tjump_ifnot {next_label}\n{block}\tjump if_end{if_count}\n{elif_asm}"
         elif_inner_count += 1
         return msg
-        
+
+    def update_typs(self):
+        cond = self.condition.update_typs()
+        block = self.block.update_typs()
+        if self.elif_node is not None:
+            elf = self.elif_node.update_typs()
+
+        if cond:
+            return cond
+        elif block:
+            return block
+        elif elf:
+            return elf
 
 class Else(ASTNode):
     def __init__(self, block):
@@ -213,6 +244,9 @@ class Else(ASTNode):
         block = self.block.get_assembly()
         
         return f"else{else_count}:\n{block}"
+
+    def update_typs(self):
+        return self.block.update_typs()
 
 class Loop(ASTNode):
     def __init__(self, condition, block):
@@ -253,6 +287,11 @@ class BinOp(ASTNode):
         op = self.op
         return f"{left}{right}\tcall {typ}:{op}\n"
 
+    def update_typs(self):
+        left = self.left.update_typs()
+        right = self.right.update_typs()
+        return left or right
+
 class Negate(ASTNode):
     def __init__(self, val):
         self.val = val
@@ -263,6 +302,9 @@ class Negate(ASTNode):
         typ = self.typ
         el = Element(a.typ, f"\tconst 0\n{a.text}\tcall {a.typ}:sub\n")
         return f"\tconst 0\n{val}\tcall {typ}:sub\n"
+
+    def update_typs(self):
+        return self.val.update_typs()
 
 class Methodcall(ASTNode):
     def __init__(self, val, method, args):
@@ -312,21 +354,19 @@ class Methodcall(ASTNode):
     def get_typ(self):
         return self.typ
 
-    def update_typ(self, arg):
+    def update_typs(self):
         orig_typ = self.typ
         changed = False
 
-        assert method in methods[typ.name], f"Type Checker: [while loop] {self.typ} does not have a {self.method} method!"
-        new = methods[typ.name][method]
-        for typ in types:
-            if new == typ.name:
-                self.typ = typ
-                changed = True
+        for typ in self.typ:
+            assert self.method in methods[typ], f"Type Checker: [while loop] {self.typ} does not have a {self.method} method!"
+            new = methods[typ.name][method]
+            for typ in types:
+                if new == typ.name:
+                    self.typ = typ
+                    changed = True
 
-        if arg:
-            return arg
-        else:
-            return changed
+        return changed
 
 # Constants
 
@@ -340,6 +380,9 @@ class Const(ASTNode):
 
     def get_typ(self):
         return self.typ
+
+    def update_typs(self):
+        return False
 
 class Number(Const):
     def __init__(self, val):
@@ -391,6 +434,9 @@ class Var(ASTNode):
     def get_typ(self):
         return self.typs
 
+    def update_typs(self):
+        return False
+
 class Assignment(ASTNode):
     def __init__(self, name, typ, val):
         self.name = name
@@ -404,6 +450,9 @@ class Assignment(ASTNode):
         val = self.val.get_assembly()
         name = self.name
         return f"{val}\tstore {name}\n"
+
+    def update_typs(self):
+        return False
 
 var_list = {}
 
