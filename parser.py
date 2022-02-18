@@ -57,6 +57,12 @@ quack_grammar = """
          | "(" sum ")"
          | "(" methodcall ")"
          | STRING               -> string
+         | bool
+
+    bool: "true"                -> true
+        | "false"               -> false
+    
+
 
     %import common.CNAME        -> NAME
     %import common.INT
@@ -78,7 +84,8 @@ while_count = 0
 methods = {
         "Int": {"plus": "Int", "sub": "Int", "mult": "Int", "div": "Int", "less": "Boolean", "equals": "Boolean", "print": "Nothing", "string": "String"},
         "String": {"string": "String", "print": "Nothing", "equals": "Boolean", "less": "Boolean", "plus": "String"},
-        "Obj": {"string": "String", "print": "Nothing", "equals": "Boolean"}
+        "Obj": {"string": "String", "print": "Nothing", "equals": "Boolean"},
+        "Boolean": {"string": "String", "print": "Nothing", "equals": "Boolean"}
         }
 
 # Possible types
@@ -324,6 +331,14 @@ class String(Const):
             if typ.name == "String":
                 self.typ.add(typ)
 
+class Bool(Const):
+    def __init__(self, val):
+        super().__init__(val)
+        self.typ = set()
+        for typ in types:
+            if typ.name == "Boolean":
+                self.typ.add(typ)
+
 # Variables
 
 class Var(ASTNode):
@@ -478,6 +493,12 @@ class BuildTree(Transformer):
 
     def condelse(self, block):
         return Else(block)
+
+    def true(self):
+        return Bool("true")
+
+    def false(self):
+        return Bool("false")
 
 preprocessor = Lark(quack_grammar, parser='lalr', transformer=RewriteTree())
 preprocessor = preprocessor.parse
