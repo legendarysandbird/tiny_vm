@@ -1,5 +1,6 @@
 #!/bin/sh
+filename=$1
 
-python3 parser.py $1.quack >$1.asm &&\
-python3 assemble.py $1.asm >OBJ/$1.json &&\
-./tiny_vm $1
+python3 parser.py $filename >${filename%.*}.asm &&\
+python3 assemble.py ${filename%.*}.asm >OBJ/${filename%.*}.json &&\
+./tiny_vm ${filename%.*}
