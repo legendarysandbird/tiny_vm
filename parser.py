@@ -132,6 +132,9 @@ class ASTNode:
     def get_assembly(self):
         NotImplementedError(f"{self.__name} should have a get_assembly method")
 
+    def update_typs(self, arg):
+        return arg
+
 class Program(ASTNode):
     def __init__(self, left, right):
         self.left = left
@@ -225,7 +228,14 @@ class Loop(ASTNode):
         msg = f"\tjump while_end{while_count}\nwhile_start{while_count}:\n{block}while_end{while_count}:\n{condition}\tjump_if while_start{while_count}\n"
         while_count += 1
 
+        self.update_typs()
+
         return msg
+
+    def update_typs(self):
+        cont = self.block.update_typs()
+        while cont:
+            self.block.update_typs() 
 
 # Arithmetic Operations
 
@@ -301,6 +311,22 @@ class Methodcall(ASTNode):
 
     def get_typ(self):
         return self.typ
+
+    def update_typ(self, arg):
+        orig_typ = self.typ
+        changed = False
+
+        assert method in methods[typ.name], f"Type Checker: [while loop] {self.typ} does not have a {self.method} method!"
+        new = methods[typ.name][method]
+        for typ in types:
+            if new == typ.name:
+                self.typ = typ
+                changed = True
+
+        if arg:
+            return arg
+        else:
+            return changed
 
 # Constants
 
