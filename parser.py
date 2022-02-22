@@ -1,7 +1,7 @@
 import sys
 from lark import Lark, Transformer, v_args, Tree, Token
 
-quack_grammar = """
+quack_grammar = r"""
     ?start: program
 
     ?program: statement
@@ -61,8 +61,8 @@ quack_grammar = """
 
     bool: "true"                -> true
         | "false"               -> false
-    
 
+    COMMENT: "/*" /(.|\n)*/ "*/"
 
     %import common.CNAME        -> NAME
     %import common.INT
@@ -70,6 +70,7 @@ quack_grammar = """
     %import common.ESCAPED_STRING -> STRING
 
     %ignore WS
+    %ignore COMMENT
 """
 
 # Provide unique names to all labels
