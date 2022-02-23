@@ -13,6 +13,16 @@ quack_grammar = r"""
         | loop ";"
         | condif ";"
 
+    class: lexp "(" params ")" class_typ  "{" statement funcs "}"
+
+    class_typ: ["extends" typ]
+
+    params: [param] ("," param)*
+
+    param: rexp
+
+    funcs: "def" lexp "(" params ")" ":" typ "{" [statement] "return" rexp "}"
+
     loop: "while" "(" rexp ")" "{" program "}"
 
     condif: "if" rexp "{" statement "}" [condelif] [condelse]
@@ -23,6 +33,8 @@ quack_grammar = r"""
 
     methodcall: rexp "." lexp "(" ")"
         | rexp "." lexp "(" atom ")"
+
+    field: rexp "." lexp
 
     rexp: sum
 
