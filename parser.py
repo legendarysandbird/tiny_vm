@@ -518,7 +518,7 @@ class RewriteTree(Transformer):
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
     def __init__(self):
-        filename = sys.argv[1].split(".")[0]
+        filename = sys.argv[1].split("/")[-1].split(".")[-2]
         print(f".class {filename}:Obj\n.method $constructor")
         if len(var_list) > 0:
             print(".local ", end="")

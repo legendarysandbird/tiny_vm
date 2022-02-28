@@ -1,6 +1,7 @@
 #!/bin/sh
 filename=$1
+no_ext=$(basename $filename)
 
 python3 parser.py $filename >${filename%.*}.asm &&\
-python3 assemble.py ${filename%.*}.asm >OBJ/${filename%.*}.json &&\
-./tiny_vm ${filename%.*}
+python3 assemble.py ${filename%.*}.asm >OBJ/${no_ext%.*}.json &&\
+./tiny_vm ${no_ext%.*}
