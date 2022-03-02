@@ -10,6 +10,7 @@ quack_grammar = r"""
     statement: rexp ";"
         | assignment ";"
         | methodcall ";"
+        | field ";"
         | loop ";"
         | condif ";"
 
@@ -68,6 +69,7 @@ quack_grammar = r"""
          | lexp                 -> var
          | "(" sum ")"
          | "(" methodcall ")"
+         | "(" field ")"
          | STRING               -> string
          | bool
 
@@ -94,7 +96,7 @@ else_count = 0
 while_count = 0
 
 # Methods
-methods = {
+props = {
         "Int": {"plus": "Int", "sub": "Int", "mult": "Int", "div": "Int", "less": "Boolean", "equals": "Boolean", "print": "Nothing", "string": "String"},
         "String": {"string": "String", "print": "Nothing", "equals": "Boolean", "less": "Boolean", "plus": "String"},
         "Obj": {"string": "String", "print": "Nothing", "equals": "Boolean"},
@@ -324,8 +326,8 @@ class Methodcall(ASTNode):
         self.typ = set()
         if len(val.get_typ()) > 0:
             for typ in val.get_typ():
-                assert method in methods[typ.name], f"Type Checker: {typ} does not have a {method} method!"
-                new_typ = methods[typ.name][method]
+                assert method in props[typ.name], f"Type Checker: {typ} does not have a {method} method!"
+                new_typ = props[typ.name][method]
                 break
             for typ in types:
                 if new_typ == typ.name:
@@ -372,14 +374,55 @@ class Methodcall(ASTNode):
         changed = False
 
         for typ in self.typ:
-            assert self.method in methods[typ], f"Type Checker: [while loop] {self.typ} does not have a {self.method} method!"
-            new = methods[typ.name][method]
+            assert self.method in props[typ], f"Type Checker: [while loop] {self.typ} does not have a {self.method} method!"
+            new = props[typ.name][method]
             for typ in types:
                 if new == typ.name:
                     self.typ = typ
                     changed = True
 
         return changed
+
+class Field(ASTNode):
+    def __init__(self, val, field):
+        self.val = val
+        self.field = field
+
+    def get_assembly(self):
+        typs = list(self.val.get_typ())
+        typ = "Unknown"
+        while len(typs) > 1:
+            ancestor = typs[0].get_common_ancestor(typs[1])
+            if len(typs) == 2:
+                typs = [ancestor]
+            else:
+                typs = [ancestor] + typs[2:]
+
+        typ = typs[0]
+
+        return f"\tload_field {typ.name}:{self.field}\n"
+
+    def get_typ(self):
+        typs = list(self.val.get_typ())
+        typ = "Unknown"
+        while len(typs) > 1:
+            ancestor = typs[0].get_common_ancestor(typs[1])
+            if len(typs) == 2:
+                typs = [ancestor]
+            else:
+                typs = [ancestor] + typs[2:]
+
+        typ = typs[0]
+
+        assert self.field in props[typ.name], f"'{typ.name}' has no property '{self.field}'!"
+        
+        return props[typ.name][self.field].name
+
+
+
+    def update_typs(self):
+        return self.field.update_typs(self)
+
 
 # Constants
 
@@ -569,6 +612,9 @@ class BuildTree(Transformer):
 
     def methodcall(self, val, method, args=""):
         return Methodcall(val, method, args)
+
+    def field(self, val, field):
+        return Field(val, field)
     
     def loop(self, condition, block):
         return Loop(condition, block)
