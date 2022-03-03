@@ -9,20 +9,21 @@ quack_grammar = r"""
 
     statement: rexp ";"
         | assignment ";"
-        | methodcall ";"
-        | field ";"
         | loop ";"
         | condif ";"
+        | class
 
-    class: lexp "(" params ")" class_typ  "{" statement funcs "}"
+    class: "class" class_name "(" params ")" class_typ  "{" statement* func* "}"
+
+    class_name: lexp               -> class_name
 
     class_typ: ["extends" typ]
 
     params: [param] ("," param)*
 
-    param: rexp
+    param: rexp ":" typ
 
-    funcs: "def" lexp "(" params ")" ":" typ "{" [statement] "return" rexp "}"
+    func: "def" lexp "(" params ")" ":" typ "{" [(statement)*] "return" rexp "}"
 
     loop: "while" "(" rexp ")" "{" program "}"
 
@@ -32,25 +33,26 @@ quack_grammar = r"""
 
     condelse: "else" "{" statement "}"
 
-    methodcall: rexp "." lexp "(" ")"
-        | rexp "." lexp "(" atom ")"
-
-    field: rexp "." lexp
+    methodcall: lexp "." NAME "(" ")"
+        | lexp "." NAME "(" atom ")"
+        | "(" rexp ")" "." NAME "(" ")"
+        | "(" rexp ")" "." NAME "(" atom ")"
 
     rexp: sum
 
     lexp: NAME
+        | lexp "." NAME
 
     typ: NAME
 
     ?assignment: typed
         | untyped
 
-    typed: typ ":" typ "=" rexp
-        | typ ":" typ "=" methodcall
+    typed: lexp ":" typ "=" rexp
+        | lexp ":" typ "=" rexp
 
-    untyped: typ "=" rexp
-        | typ "=" methodcall
+    untyped: lexp "=" rexp
+        | lexp "=" rexp
 
     ?sum: product
         | sum "+" product       -> plus
@@ -64,12 +66,13 @@ quack_grammar = r"""
         | relation "<" atom     -> lt
         | relation "==" atom    -> eq
 
-    ?atom: INT                  -> number
-         | "-" atom             -> neg
+    atom: methodcall
+        | quark
+
+    ?quark: INT                  -> number
+         | "-" quark             -> neg
          | lexp                 -> var
          | "(" sum ")"
-         | "(" methodcall ")"
-         | "(" field ")"
          | STRING               -> string
          | bool
 
@@ -557,6 +560,13 @@ class RewriteTree(Transformer):
     def untyped(self, name, value):
         var_list[str(name.children[0])] = Var(str(name.children[0]), set(), str(value.children[0].children[0]))
         return Tree(Token('RULE', 'untyped'), [name, value])
+
+    def class_name(self, name):
+        current = Type(name, Obj, [])
+        types.append(current)
+        current.parent.children.append(current)
+        
+        return Tree(Token('Rule', 'class_name'), [name])
 
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
