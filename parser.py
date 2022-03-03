@@ -9,38 +9,38 @@ quack_grammar = r"""
 
     statement: rexp ";"
         | assignment ";"
-        | loop ";"
-        | condif ";"
+        | loop
+        | condif
         | class
 
     class: "class" class_name "(" params ")" class_typ  "{" statement* func* "}"
 
-    class_name: lexp               -> class_name
+    class_name: NAME
 
-    class_typ: ["extends" typ]
+    class_typ: ["extends" NAME] -> parent
 
     params: [param] ("," param)*
 
     param: rexp ":" typ
 
-    func: "def" lexp "(" params ")" ":" typ "{" [(statement)*] "return" rexp "}"
+    func: "def" lexp "(" params ")" ":" typ "{" [program] "return" rexp "}"
 
     loop: "while" "(" rexp ")" "{" program "}"
 
-    condif: "if" rexp "{" statement "}" [condelif] [condelse]
+    condif: "if" rexp "{" program "}" [condelif] [condelse]
 
-    condelif: "elif" rexp "{" statement "}" [condelif]
+    condelif: "elif" rexp "{" program "}" [condelif]
 
-    condelse: "else" "{" statement "}"
+    condelse: "else" "{" program "}"
 
     methodcall: lexp "." NAME "(" ")"
         | lexp "." NAME "(" atom ")"
-        | "(" rexp ")" "." NAME "(" ")"
-        | "(" rexp ")" "." NAME "(" atom ")"
+        | quark "." NAME "(" ")"
+        | quark "." NAME "(" atom ")"
 
     rexp: sum
 
-    lexp: NAME
+    ?lexp: NAME                 -> var
         | lexp "." NAME
 
     typ: NAME
@@ -54,29 +54,30 @@ quack_grammar = r"""
     untyped: lexp "=" rexp
         | lexp "=" rexp
 
+    ?relation: sum
+        | relation "<" sum     -> lt
+        | relation "==" sum    -> eq
+
     ?sum: product
         | sum "+" product       -> plus
         | sum "-" product       -> sub
 
-    ?product: relation
-        | product "*" relation  -> mult
-        | product "/" relation  -> div
+    ?product: atom
+        | product "*" atom  -> mult
+        | product "/" atom  -> div
 
-    ?relation: atom
-        | relation "<" atom     -> lt
-        | relation "==" atom    -> eq
-
-    atom: methodcall
+    ?atom: methodcall
         | quark
 
     ?quark: INT                  -> number
-         | "-" quark             -> neg
-         | lexp                 -> var
-         | "(" sum ")"
-         | STRING               -> string
-         | bool
+        | "-" quark             -> neg
+        | lexp
+        | "(" sum ")"
+        | STRING               -> string
+        | bool
+        | params
 
-    bool: "true"                -> true
+    ?bool: "true"                -> true
         | "false"               -> false
 
     COMMENT: "/*" /(.|\n)*/ "*/"
@@ -426,6 +427,17 @@ class Field(ASTNode):
     def update_typs(self):
         return self.field.update_typs(self)
 
+class Class(ASTNode):
+    def __init__(self, name, params, parent, code, funcs):
+        self.name = name
+        self.params = params
+        self.parent = parent 
+        self.code = code
+        self.funcs = funcs
+        self.vars = []
+
+    def __str__(self):
+        return f"{self.name}; vars: {self.vars}; funcs: {self.funcs}"
 
 # Constants
 
@@ -568,6 +580,8 @@ class RewriteTree(Transformer):
         
         return Tree(Token('Rule', 'class_name'), [name])
 
+    def func(self, name, params, 
+    
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
     def __init__(self):
@@ -643,6 +657,11 @@ class BuildTree(Transformer):
 
     def false(self):
         return Bool("false")
+
+    def clazz(self, name, params, parent, code, funcs):
+        cl = Class(name, params, parent, code, funcs)
+        print(cl)
+        return cl
 
 preprocessor = Lark(quack_grammar, parser='lalr', transformer=RewriteTree())
 preprocessor = preprocessor.parse
