@@ -17,7 +17,7 @@ quack_grammar = r"""
 
     class_name: NAME
 
-    class_typ: ["extends" NAME] -> parent
+    class_typ: ["extends" NAME]             -> parent
 
     ?params: [param [("," params)]]
 
@@ -151,6 +151,7 @@ types = [
 # Abstract Base Class
 
 node_list = []
+var_list = {}
 
 class ASTNode:
     def __init__(self):
@@ -459,16 +460,32 @@ class Class(ASTNode):
         self.parent = parent 
         self.code = code
         self.funcs = funcs
-        self.vars = []
+
+        var_list[self.name] = {}
+
+        for local in params:
+            var_list[self.name][local] = Var(local, params[local], "Unknown")
+
+
 
     def __str__(self):
-        return f"Name: {self.name}; Vars: {self.vars}; Funcs: {self.funcs}"
+        return f"Name: {self.name}"
 
     def get_assembly(self):
         name = self.name
         parent = self.parent
 
         code = ""
+
+        if len(self.params) > 0:
+            code += ".method $constructor\n.args "
+            li = []
+            for param in self.params:
+                li.append(param)
+            code += ",".join(li) + "\n"
+
+        code += "\tenter\n"
+
         for line in self.code:
             code += line.get_assembly()
 
@@ -555,17 +572,25 @@ class Assignment(ASTNode):
         self.val = val
         self.typ = "Unknown"
 
-        #self.vars[self.name].set_typ(typ)
-        #self.vars[self.name].set_val(val)
-
     def get_assembly(self):
-        #self.vars[self.name].set_valid()
+        var_list[self.name].set_valid()
+        self.fill_typs()
+
         val = self.val.get_assembly()
         name = self.name
         return f"{val}\tstore {name}\n"
 
     def update_typs(self):
         return False
+
+    def fill_typs(self):
+        self.typ = self.val.get_typ()
+        typ = self.typ
+        val = self.val
+
+        #self.vars[self.name].set_typ(typ)
+        #self.vars[self.name].set_val(val)
+
 
 @v_args(inline=True)
 class RewriteTree(Transformer):
@@ -693,6 +718,12 @@ class BuildTree(Transformer):
 
     def class_name(self, name):
         return str(name)
+
+    def parent(self, name=None):
+        if not name:
+            name = "Obj"
+
+        return name
 
     def params(self, *params):
         typs = {}
