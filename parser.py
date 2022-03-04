@@ -23,6 +23,10 @@ quack_grammar = r"""
 
     param: NAME ":" typ
 
+    ?args: [arg [("," args)]]
+
+    arg: rexp
+
     funcs: func*
 
     func: "def" lexp "(" params ")" ":" typ "{" [block] "return" rexp ";" "}"
@@ -41,6 +45,8 @@ quack_grammar = r"""
         | lexp "." NAME "(" atom ")"
         | quark "." NAME "(" ")"
         | quark "." NAME "(" atom ")"
+
+    class_create: NAME "(" args ")"
 
     rexp: sum
 
@@ -65,6 +71,7 @@ quack_grammar = r"""
         | product "/" atom  -> div
 
     ?atom: methodcall
+        | class_create
         | quark
 
     ?quark: INT                  -> number
@@ -73,7 +80,6 @@ quack_grammar = r"""
         | "(" sum ")"
         | STRING               -> string
         | bool
-        | params
 
     ?bool: "true"                -> true
         | "false"               -> false
@@ -469,7 +475,7 @@ class Class(ASTNode):
 
 
     def __str__(self):
-        return f"Name: {self.name}"
+        return f"Class: {self.name}"
 
     def get_assembly(self):
         name = self.name
@@ -493,7 +499,26 @@ class Class(ASTNode):
         for func in self.funcs:
             funcs += func.get_assembly()
 
-        return f".class {name}:{parent}\n{code}{funcs}"
+        with open(f"{self.name}.asm", "w") as fil:
+            fil.write(f".class {name}:{parent}\n{code}{funcs}\tconst nothing\n\treturn 0")
+        return ""
+
+class Instance(ASTNode):
+    def __init__(self, name, args):
+        super().__init__()
+        self.name = name
+        self.args = args
+
+    def get_assembly(self):
+        name = self.name
+        args = self.args
+
+        ret = ""
+        for arg in self.args:
+            ret += arg.get_assembly()
+
+        return f"{ret}\tnew {name}\n\tcall {name}:$constructor"
+
 
 # Constants
 
@@ -643,7 +668,6 @@ class RewriteTree(Transformer):
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
     def __init__(self):
-        '''
         filename = sys.argv[1].split("/")[-1].split(".")[-2]
         print(f".class {filename}:Obj\n.method $constructor")
         if len(var_list) > 0:
@@ -653,7 +677,6 @@ class BuildTree(Transformer):
                 li.append(var)
             print(",".join(li))
         print("\tenter")
-        '''
     
     def program(self, left, right):
         return Program(left, right)
@@ -737,6 +760,22 @@ class BuildTree(Transformer):
         parm = {str(name): str(typ)}
         return parm
 
+    def args(self, *args):
+        vals = []
+        for arg in args:
+            if arg is not None:
+                vals += arg
+
+        return vals
+
+    def arg(self, val):
+        arg = [val]
+        return arg
+
+    def class_create(self, name, args):
+        ins = Instance(name, args)
+        return ins
+
     def block(self, *programs):
         li = []
         for program in programs:
@@ -768,11 +807,9 @@ def main():
     
     pre = preprocessor(s)
     tree = BuildTree().transform(pre)
-    tree = tree.get_assembly()
-
-    print(tree, end="")
-    print("\tconst nothing")
-    print("\treturn 0")
+    output = tree.get_assembly()
+    print(output)
+    print("\tconst nothing\n\treturn 0")
 
 if __name__ == '__main__':
     main()
