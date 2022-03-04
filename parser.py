@@ -11,19 +11,23 @@ quack_grammar = r"""
         | assignment ";"
         | loop
         | condif
-        | class
+        | clazz
 
-    class: "class" class_name "(" params ")" class_typ  "{" statement* func* "}"
+    clazz: "class" class_name "(" params ")" class_typ "{" block funcs "}"
 
     class_name: NAME
 
     class_typ: ["extends" NAME] -> parent
 
-    params: [param] ("," param)*
+    ?params: [param [("," params)]]
 
-    param: rexp ":" typ
+    param: NAME ":" typ
 
-    func: "def" lexp "(" params ")" ":" typ "{" [program] "return" rexp "}"
+    funcs: func*
+
+    func: "def" lexp "(" params ")" ":" typ "{" [block] "return" rexp ";" "}"
+
+    block: statement* 
 
     loop: "while" "(" rexp ")" "{" program "}"
 
@@ -41,18 +45,12 @@ quack_grammar = r"""
     rexp: sum
 
     ?lexp: NAME                 -> var
-        | lexp "." NAME
+        | lexp "." NAME         -> field
 
     typ: NAME
 
-    ?assignment: typed
-        | untyped
-
-    typed: lexp ":" typ "=" rexp
-        | lexp ":" typ "=" rexp
-
-    untyped: lexp "=" rexp
-        | lexp "=" rexp
+    ?assignment: lexp ":" typ "=" rexp    -> typed
+        | lexp "=" rexp             -> untyped
 
     ?relation: sum
         | relation "<" sum     -> lt
@@ -135,24 +133,35 @@ class Type:
 
         return type1
 
+def get_typ_by_name(name):
+    for typ in types:
+        if typ.name == name:
+            return typ
+
 Obj = Type("Obj", None, ["Int", "String"])
 String = Type("String", Obj, [])
 Int = Type("Int", Obj, [])
+
 types = [
         Obj,
         String,
         Int
         ]
 
-
 # Abstract Base Class
 
+node_list = []
+
 class ASTNode:
+    def __init__(self):
+        node_list.append(self)
+
     def get_assembly(self):
         NotImplementedError(f"{self.__name} should have a get_assembly method")
 
 class Program(ASTNode):
     def __init__(self, left, right):
+        super().__init__()
         self.left = left
         self.right = right
 
@@ -170,6 +179,7 @@ class Program(ASTNode):
 
 class If(ASTNode):
     def __init__(self, condition, block, elif_node, else_node):
+        super().__init__()
         self.condition = condition
         self.block = block
         self.elif_node = elif_node
@@ -219,6 +229,7 @@ class If(ASTNode):
 
 class Elif(ASTNode):
     def __init__(self, condition, block, elif_node):
+        super().__init__()
         self.condition = condition
         self.block = block
         self.elif_node = elif_node
@@ -256,6 +267,7 @@ class Elif(ASTNode):
 
 class Else(ASTNode):
     def __init__(self, block):
+        super().__init__()
         self.block = block
 
     def get_assembly(self):
@@ -269,6 +281,7 @@ class Else(ASTNode):
 
 class Loop(ASTNode):
     def __init__(self, condition, block):
+        super().__init__()
         self.condition = condition
         self.block = block
 
@@ -294,6 +307,7 @@ class Loop(ASTNode):
 
 class BinOp(ASTNode):
     def __init__(self, op, left, right):
+        super().__init__()
         self.op = op
         self.left = left
         self.right = right
@@ -313,6 +327,7 @@ class BinOp(ASTNode):
 
 class Negate(ASTNode):
     def __init__(self, val):
+        super().__init__()
         self.val = val
         self.typ = "Int"
 
@@ -327,6 +342,7 @@ class Negate(ASTNode):
 
 class Methodcall(ASTNode):
     def __init__(self, val, method, args):
+        super().__init__()
         self.typ = set()
         if len(val.get_typ()) > 0:
             for typ in val.get_typ():
@@ -387,8 +403,18 @@ class Methodcall(ASTNode):
 
         return changed
 
+class Function(ASTNode):
+    def __init__(self, name, params, typ, program, ret):
+        super().__init__()
+        self.name = name
+        self.params = params
+        self.typ = typ
+        self.program = program
+        self.ret = ret
+
 class Field(ASTNode):
     def __init__(self, val, field):
+        super().__init__()
         self.val = val
         self.field = field
 
@@ -422,13 +448,12 @@ class Field(ASTNode):
         
         return props[typ.name][self.field].name
 
-
-
     def update_typs(self):
         return self.field.update_typs(self)
 
 class Class(ASTNode):
     def __init__(self, name, params, parent, code, funcs):
+        super().__init__()
         self.name = name
         self.params = params
         self.parent = parent 
@@ -437,12 +462,27 @@ class Class(ASTNode):
         self.vars = []
 
     def __str__(self):
-        return f"{self.name}; vars: {self.vars}; funcs: {self.funcs}"
+        return f"Name: {self.name}; Vars: {self.vars}; Funcs: {self.funcs}"
+
+    def get_assembly(self):
+        name = self.name
+        parent = self.parent
+
+        code = ""
+        for line in self.code:
+            code += line.get_assembly()
+
+        funcs = ""
+        for func in self.funcs:
+            funcs += func.get_assembly()
+
+        return f".class {name}:{parent}\n{code}{funcs}"
 
 # Constants
 
 class Const(ASTNode):
     def __init__(self, val):
+        super().__init__()
         self.val = val
 
     def get_assembly(self):
@@ -459,20 +499,19 @@ class Number(Const):
     def __init__(self, val):
         super().__init__(val)
         self.typ = set()
-        for typ in types:
-            if typ.name == "Int":
-                self.typ.add(typ)
+        typ = get_typ_by_name("Int")
+        self.typ.add(typ)
 
 class String(Const):
     def __init__(self, val):
         super().__init__(val)
         self.typ = set()
-        for typ in types:
-            if typ.name == "String":
-                self.typ.add(typ)
+        typ = get_typ_by_name("String")
+        self.typ.add(typ)
 
 class Bool(Const):
     def __init__(self, val):
+        super().__init__()
         super().__init__(val)
         self.typ = set()
         for typ in types:
@@ -483,6 +522,7 @@ class Bool(Const):
 
 class Var(ASTNode):
     def __init__(self, name, typ, val):
+        super().__init__()
         self.name = name
         self.typs = typ
         self.val = val
@@ -509,23 +549,23 @@ class Var(ASTNode):
         return False
 
 class Assignment(ASTNode):
-    def __init__(self, name, typ, val):
+    def __init__(self, name, val):
+        super().__init__()
         self.name = name
-        self.typ = typ
         self.val = val
-        var_list[self.name].set_typ(typ)
-        var_list[self.name].set_val(val)
+        self.typ = "Unknown"
+
+        #self.vars[self.name].set_typ(typ)
+        #self.vars[self.name].set_val(val)
 
     def get_assembly(self):
-        var_list[self.name].set_valid()
+        #self.vars[self.name].set_valid()
         val = self.val.get_assembly()
         name = self.name
         return f"{val}\tstore {name}\n"
 
     def update_typs(self):
         return False
-
-var_list = {}
 
 @v_args(inline=True)
 class RewriteTree(Transformer):
@@ -554,37 +594,31 @@ class RewriteTree(Transformer):
     def lt(self, a, b):
         return self._arithmetic(a, b, "less")
 
+    '''
     def typed(self, name, typ, value):
-        for cur_typ in types:
-            if cur_typ.name == str(typ.children[0]):
-                typ = cur_typ
-                break
+        typ = get_typ_by_name(str(typ.children[0]))
 
         cur_types = set()
         cur_types.add(typ)
 
         if str(name.children[0]) not in var_list:
-            var_list[str(name.children[0])] = Var(str(name.children[0]), cur_types, str(value.children[0].children[0]))
+            self.vars[str(name.children[0])] = Var(str(name.children[0]), cur_types, str(value.children[0].children[0]))
         else:
-            var_list[str(name.children[0])].typ.add(typ)
+            self.vars[str(name.children[0])].typ.add(typ)
+
         return Tree(Token('RULE', 'typed'), [name, typ, value])
     
     def untyped(self, name, value):
-        var_list[str(name.children[0])] = Var(str(name.children[0]), set(), str(value.children[0].children[0]))
+        self.vars[str(name.children[0])] = Var(str(name.children[0]), set(), str(value.children[0].children[0]))
+
         return Tree(Token('RULE', 'untyped'), [name, value])
+    '''
 
-    def class_name(self, name):
-        current = Type(name, Obj, [])
-        types.append(current)
-        current.parent.children.append(current)
-        
-        return Tree(Token('Rule', 'class_name'), [name])
 
-    def func(self, name, params, 
-    
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
     def __init__(self):
+        '''
         filename = sys.argv[1].split("/")[-1].split(".")[-2]
         print(f".class {filename}:Obj\n.method $constructor")
         if len(var_list) > 0:
@@ -594,6 +628,7 @@ class BuildTree(Transformer):
                 li.append(var)
             print(",".join(li))
         print("\tenter")
+        '''
     
     def program(self, left, right):
         return Program(left, right)
@@ -603,27 +638,21 @@ class BuildTree(Transformer):
 
     def lexp(self, name):
         return str(name)
+
+    def field(self, parent, name):
+        return Field(parent, name)
     
     def typ(self, name):
         return str(name)
 
     def typed(self, name, typ, val):
-        typs = set()
-        typs.add(typ)
-        return Assignment(name, typs, val)
+        return Assignment(name, val)
 
     def untyped(self, name, val):
-        typ = val.get_typ()
-        for cur_typ in types:
-            if cur_typ.name == typ:
-                typ = cur_typ
-                break
-
-        var_list[name].set_typ(typ)
-        return Assignment(name, typ, val)
+        return Assignment(name, val)
 
     def var(self, name):
-        return var_list[str(name)]
+        return name
     
     def rexp(self, math_node):
         return math_node
@@ -660,8 +689,39 @@ class BuildTree(Transformer):
 
     def clazz(self, name, params, parent, code, funcs):
         cl = Class(name, params, parent, code, funcs)
-        print(cl)
         return cl
+
+    def class_name(self, name):
+        return str(name)
+
+    def params(self, *params):
+        typs = {}
+        for arg in params:
+            if arg is not None:
+                typs.update(arg)
+
+        return typs
+
+    def param(self, name, typ):
+        parm = {str(name): str(typ)}
+        return parm
+
+    def block(self, *programs):
+        li = []
+        for program in programs:
+            li.append(program)
+        return li
+
+    def funcs(self, *funcs):
+        li = []
+        for func in funcs:
+            li.append(func)
+        return li
+
+    def func(self, name, params, typ, program, ret):
+        func = Function(name, params, typ, program, ret)
+        return func
+
 
 preprocessor = Lark(quack_grammar, parser='lalr', transformer=RewriteTree())
 preprocessor = preprocessor.parse
