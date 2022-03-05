@@ -29,7 +29,7 @@ quack_grammar = r"""
 
     funcs: func*
 
-    func: "def" lexp "(" params ")" ":" typ "{" [block] "return" rexp ";" "}"
+    func: "def" lexp "(" params ")" ":" typ "{" block "return" rexp ";" "}"
 
     block: statement* 
 
@@ -103,27 +103,25 @@ elif_inner_count = 0
 else_count = 0
 while_count = 0
 
-# Methods
-props = {
-        "Int": {"plus": "Int", "sub": "Int", "mult": "Int", "div": "Int", "less": "Boolean", "equals": "Boolean", "print": "Nothing", "string": "String"},
-        "String": {"string": "String", "print": "Nothing", "equals": "Boolean", "less": "Boolean", "plus": "String"},
-        "Obj": {"string": "String", "print": "Nothing", "equals": "Boolean"},
-        "Boolean": {"string": "String", "print": "Nothing", "equals": "Boolean"}
-        }
+# Global
+
+current_class = None
 
 # Possible types
 
 class Type:
-    def __init__(self, name, parent, children):
+    def __init__(self, name, parent, children, funcs, props):
         self.name = name
         self.parent = parent
         self.children = children
+        self.funcs = funcs
+        self.props = props
 
     def __str__(self):
         return f"{self.name.upper()}"
 
     def __repr__(self):
-        return f"Type({self.name}, {self.parent}, {self.children})"
+        return f"Type({self.name}, {self.parent}, {self.children}, {self.funcs}, {self.props})"
 
     def get_common_ancestor(self, other):
         type1 = self
@@ -144,14 +142,16 @@ def get_typ_by_name(name):
         if typ.name == name:
             return typ
 
-Obj = Type("Obj", None, ["Int", "String"])
-String = Type("String", Obj, [])
-Int = Type("Int", Obj, [])
+Obj = Type("Obj", None, ["Int", "String"], {"string": "String", "print": "Nothing", "equals": "Boolean"}, {})
+String = Type("String", Obj, [], {"string": "String", "print": "Nothing", "equals": "Boolean", "less": "Boolean", "plus": "String"}, {})
+Int = Type("Int", Obj, [], {"plus": "Int", "sub": "Int", "mult": "Int", "div": "Int", "less": "Boolean", "equals": "Boolean", "print": "Nothing", "string": "String"}, {})
+Boolean = Type("Boolean", Obj, [], {"string": "String", "print": "Nothing", "equals": "Boolean"}, {})
 
 types = [
         Obj,
         String,
-        Int
+        Int,
+        Boolean
         ]
 
 # Abstract Base Class
@@ -422,6 +422,8 @@ class Function(ASTNode):
 class Field(ASTNode):
     def __init__(self, val, field):
         super().__init__()
+        if val == "this":
+            val = "$"
         self.val = val
         self.field = field
 
@@ -467,6 +469,10 @@ class Class(ASTNode):
         self.code = code
         self.funcs = funcs
 
+        parent = get_typ_by_name("self.parent")
+
+        types.append(Type(self.name, parent, [], self.funcs, []))
+
         var_list[self.name] = {}
 
         for local in params:
@@ -478,13 +484,16 @@ class Class(ASTNode):
         return f"Class: {self.name}"
 
     def get_assembly(self):
+        global current_class
+        current_class = self.name
+
         name = self.name
         parent = self.parent
 
-        code = ""
+        code = ".method $constructor\n"
 
         if len(self.params) > 0:
-            code += ".method $constructor\n.args "
+            code += ".args "
             li = []
             for param in self.params:
                 li.append(param)
@@ -598,8 +607,8 @@ class Assignment(ASTNode):
         self.typ = "Unknown"
 
     def get_assembly(self):
-        var_list[self.name].set_valid()
-        self.fill_typs()
+        #var_list[self.name].set_valid()
+        # self.fill_typs()
 
         val = self.val.get_assembly()
         name = self.name
@@ -676,7 +685,7 @@ class BuildTree(Transformer):
             for var in var_list:
                 li.append(var)
             print(",".join(li))
-        print("\tenter")
+        print("\tenter", end="")
     
     def program(self, left, right):
         return Program(left, right)
@@ -780,6 +789,7 @@ class BuildTree(Transformer):
         li = []
         for program in programs:
             li.append(program)
+
         return li
 
     def funcs(self, *funcs):
@@ -791,7 +801,6 @@ class BuildTree(Transformer):
     def func(self, name, params, typ, program, ret):
         func = Function(name, params, typ, program, ret)
         return func
-
 
 preprocessor = Lark(quack_grammar, parser='lalr', transformer=RewriteTree())
 preprocessor = preprocessor.parse
