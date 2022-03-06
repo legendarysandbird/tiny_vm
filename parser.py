@@ -1,99 +1,7 @@
 import sys
 from lark import Lark, Transformer, v_args, Tree, Token
-
-quack_grammar = r"""
-    ?start: program
-
-    ?program: statement
-        | program statement
-
-    statement: rexp ";"
-        | assignment ";"
-        | loop
-        | condif
-        | clazz
-
-    clazz: "class" class_name "(" params ")" class_typ "{" block funcs "}"
-
-    class_name: NAME
-
-    class_typ: ["extends" NAME]             -> parent
-
-    ?params: [param [("," params)]]
-
-    param: NAME ":" typ
-
-    ?args: [arg [("," args)]]
-
-    arg: rexp
-
-    funcs: func*
-
-    func: "def" lexp "(" params ")" ":" typ "{" block "return" rexp ";" "}"
-
-    block: statement* 
-
-    loop: "while" "(" rexp ")" "{" program "}"
-
-    condif: "if" rexp "{" program "}" [condelif] [condelse]
-
-    condelif: "elif" rexp "{" program "}" [condelif]
-
-    condelse: "else" "{" program "}"
-
-    methodcall: lexp "." NAME "(" ")"
-        | lexp "." NAME "(" atom ")"
-        | quark "." NAME "(" ")"
-        | quark "." NAME "(" atom ")"
-
-    class_create: NAME "(" args ")"
-
-    rexp: sum
-
-    ?lexp: NAME                 -> var
-        | lexp "." NAME         -> field
-
-    typ: NAME
-
-    ?assignment: lexp ":" typ "=" rexp    -> typed
-        | lexp "=" rexp             -> untyped
-
-    ?relation: sum
-        | relation "<" sum     -> lt
-        | relation "==" sum    -> eq
-
-    ?sum: product
-        | sum "+" product       -> plus
-        | sum "-" product       -> sub
-
-    ?product: atom
-        | product "*" atom  -> mult
-        | product "/" atom  -> div
-
-    ?atom: methodcall
-        | class_create
-        | quark
-
-    ?quark: INT                  -> number
-        | "-" quark             -> neg
-        | lexp
-        | "(" sum ")"
-        | STRING               -> string
-        | bool
-
-    ?bool: "true"                -> true
-        | "false"               -> false
-
-    COMMENT: "/*" /(.|\n)*/ "*/"
-
-    %import common.CNAME        -> NAME
-    %import common.INT
-    %import common.WS
-    %import common.ESCAPED_STRING -> STRING
-
-    %ignore WS
-    %ignore COMMENT
-"""
+from quackGrammar import quack_grammar
+from Type import *
 
 # Provide unique names to all labels
 
@@ -106,53 +14,6 @@ while_count = 0
 # Global
 
 current_class = None
-
-# Possible types
-
-class Type:
-    def __init__(self, name, parent, children, funcs, props):
-        self.name = name
-        self.parent = parent
-        self.children = children
-        self.funcs = funcs
-        self.props = props
-
-    def __str__(self):
-        return f"{self.name.upper()}"
-
-    def __repr__(self):
-        return f"Type({self.name}, {self.parent}, {self.children}, {self.funcs}, {self.props})"
-
-    def get_common_ancestor(self, other):
-        type1 = self
-        type2 = other
-        while type1.name != type2.name:
-            if type1.name == "Obj" and type2.name == "Obj":
-                break
-            elif type2.name == "Obj":
-                type1 = type1.parent
-                type2 = other
-            else:
-                type2 = type2.parent
-
-        return type1
-
-def get_typ_by_name(name):
-    for typ in types:
-        if typ.name == name:
-            return typ
-
-Obj = Type("Obj", None, ["Int", "String"], {"string": "String", "print": "Nothing", "equals": "Boolean"}, {})
-String = Type("String", Obj, [], {"string": "String", "print": "Nothing", "equals": "Boolean", "less": "Boolean", "plus": "String"}, {})
-Int = Type("Int", Obj, [], {"plus": "Int", "sub": "Int", "mult": "Int", "div": "Int", "less": "Boolean", "equals": "Boolean", "print": "Nothing", "string": "String"}, {})
-Boolean = Type("Boolean", Obj, [], {"string": "String", "print": "Nothing", "equals": "Boolean"}, {})
-
-types = [
-        Obj,
-        String,
-        Int,
-        Boolean
-        ]
 
 # Abstract Base Class
 
@@ -176,11 +37,6 @@ class Program(ASTNode):
         left = self.left.get_assembly()
         right = self.right.get_assembly()
         return f"{left}{right}"
-
-    def update_typs(self):
-        left = self.left.update_typs()
-        right = self.right.update_typs()
-        return left or right
 
 # Control Flow
 
@@ -217,23 +73,6 @@ class If(ASTNode):
         
         return msg
 
-    def update_typs(self):
-        cond = self.condition.update_typs()
-        block = self.block.update_typs()
-        if self.elif_node is not None:
-            elf = self.elif_node.update_typs()
-        elif self.else_node is not None:
-            els = self.else_node.update_typs()
-
-        if cond:
-            return cond
-        elif block:
-            return block
-        elif elf:
-            return elf
-        elif els:
-            return els
-
 class Elif(ASTNode):
     def __init__(self, condition, block, elif_node):
         super().__init__()
@@ -259,19 +98,6 @@ class Elif(ASTNode):
         elif_inner_count += 1
         return msg
 
-    def update_typs(self):
-        cond = self.condition.update_typs()
-        block = self.block.update_typs()
-        if self.elif_node is not None:
-            elf = self.elif_node.update_typs()
-
-        if cond:
-            return cond
-        elif block:
-            return block
-        elif elf:
-            return elf
-
 class Else(ASTNode):
     def __init__(self, block):
         super().__init__()
@@ -282,9 +108,6 @@ class Else(ASTNode):
         block = self.block.get_assembly()
         
         return f"else{else_count}:\n{block}"
-
-    def update_typs(self):
-        return self.block.update_typs()
 
 class Loop(ASTNode):
     def __init__(self, condition, block):
@@ -301,14 +124,7 @@ class Loop(ASTNode):
         msg = f"\tjump while_end{while_count}\nwhile_start{while_count}:\n{block}while_end{while_count}:\n{condition}\tjump_if while_start{while_count}\n"
         while_count += 1
 
-        self.update_typs()
-
         return msg
-
-    def update_typs(self):
-        cont = self.block.update_typs()
-        while cont:
-            self.block.update_typs() 
 
 # Arithmetic Operations
 
@@ -327,11 +143,6 @@ class BinOp(ASTNode):
         op = self.op
         return f"{left}{right}\tcall {typ}:{op}\n"
 
-    def update_typs(self):
-        left = self.left.update_typs()
-        right = self.right.update_typs()
-        return left or right
-
 class Negate(ASTNode):
     def __init__(self, val):
         super().__init__()
@@ -344,21 +155,16 @@ class Negate(ASTNode):
         el = Element(a.typ, f"\tconst 0\n{a.text}\tcall {a.typ}:sub\n")
         return f"\tconst 0\n{val}\tcall {typ}:sub\n"
 
-    def update_typs(self):
-        return self.val.update_typs()
-
 class Methodcall(ASTNode):
     def __init__(self, val, method, args):
         super().__init__()
         self.typ = set()
         if len(val.get_typ()) > 0:
             for typ in val.get_typ():
-                assert method in props[typ.name], f"Type Checker: {typ} does not have a {method} method!"
-                new_typ = props[typ.name][method]
+                assert method in types[typ.name].methods, f"Type Checker: {typ} does not have a {method} method!"
+                new_typ = types[typ.name].methods[method]
                 break
-            for typ in types:
-                if new_typ == typ.name:
-                    self.typ.add(typ)
+            self.typ.add(new_typ)
         self.method = method
         self.val = val
         self.args = args
@@ -396,20 +202,6 @@ class Methodcall(ASTNode):
     def get_typ(self):
         return self.typ
 
-    def update_typs(self):
-        orig_typ = self.typ
-        changed = False
-
-        for typ in self.typ:
-            assert self.method in props[typ], f"Type Checker: [while loop] {self.typ} does not have a {self.method} method!"
-            new = props[typ.name][method]
-            for typ in types:
-                if new == typ.name:
-                    self.typ = typ
-                    changed = True
-
-        return changed
-
 class Function(ASTNode):
     def __init__(self, name, params, typ, program, ret):
         super().__init__()
@@ -428,7 +220,7 @@ class Field(ASTNode):
         self.field = field
 
     def get_assembly(self):
-        typs = list(self.val.get_typ())
+        typs = list(self.typs)
         typ = "Unknown"
         while len(typs) > 1:
             ancestor = typs[0].get_common_ancestor(typs[1])
@@ -439,10 +231,16 @@ class Field(ASTNode):
 
         typ = typs[0]
 
-        return f"\tload_field {typ.name}:{self.field}\n"
+        if self.val == "$":
+            types[current_class].props[str(self.field)] = typ
+
+        return f"{self.val}:{self.field}\n"
+
+    def fill_typs(self, env):
+        self.typs = env[self.field].typs
 
     def get_typ(self):
-        typs = list(self.val.get_typ())
+        typs = self.typs
         typ = "Unknown"
         while len(typs) > 1:
             ancestor = typs[0].get_common_ancestor(typs[1])
@@ -457,9 +255,6 @@ class Field(ASTNode):
         
         return props[typ.name][self.field].name
 
-    def update_typs(self):
-        return self.field.update_typs(self)
-
 class Class(ASTNode):
     def __init__(self, name, params, parent, code, funcs):
         super().__init__()
@@ -469,16 +264,25 @@ class Class(ASTNode):
         self.code = code
         self.funcs = funcs
 
-        parent = get_typ_by_name("self.parent")
+        env = {}
+        for param in self.params:
+            s = set()
+            s.add(types[self.params[param]])
+            env[param] = Var(param, s, param)
+            env[param].set_valid()
 
-        types.append(Type(self.name, parent, [], self.funcs, []))
+        for piece in self.code:
+            if type(piece) == Assignment:
+                piece.fill_typs(env)
+
+        parent = types[self.parent]
+
+        types[self.name] = Type(self.name, parent, [], self.funcs, {})
 
         var_list[self.name] = {}
 
         for local in params:
             var_list[self.name][local] = Var(local, params[local], "Unknown")
-
-
 
     def __str__(self):
         return f"Class: {self.name}"
@@ -508,8 +312,12 @@ class Class(ASTNode):
         for func in self.funcs:
             funcs += func.get_assembly()
 
+        fields = ""
+        for key in types[current_class].props:
+            fields += f".field {key}\n"
+
         with open(f"{self.name}.asm", "w") as fil:
-            fil.write(f".class {name}:{parent}\n{code}{funcs}\tconst nothing\n\treturn 0")
+            fil.write(f".class {name}:{parent}\n{fields}{code}{funcs}\tload $\n\treturn {len(self.params)}")
         return ""
 
 class Instance(ASTNode):
@@ -543,21 +351,18 @@ class Const(ASTNode):
     def get_typ(self):
         return self.typ
 
-    def update_typs(self):
-        return False
-
 class Number(Const):
     def __init__(self, val):
         super().__init__(val)
         self.typ = set()
-        typ = get_typ_by_name("Int")
+        typ = types["Int"]
         self.typ.add(typ)
 
 class String(Const):
     def __init__(self, val):
         super().__init__(val)
         self.typ = set()
-        typ = get_typ_by_name("String")
+        typ = types["String"]
         self.typ.add(typ)
 
 class Bool(Const):
@@ -596,9 +401,6 @@ class Var(ASTNode):
     def get_typ(self):
         return self.typs
 
-    def update_typs(self):
-        return False
-
 class Assignment(ASTNode):
     def __init__(self, name, val):
         super().__init__()
@@ -607,23 +409,20 @@ class Assignment(ASTNode):
         self.typ = "Unknown"
 
     def get_assembly(self):
-        #var_list[self.name].set_valid()
-        # self.fill_typs()
-
         val = self.val.get_assembly()
-        name = self.name
-        return f"{val}\tstore {name}\n"
+        name = self.name.get_assembly()
+        store = "store"
 
-    def update_typs(self):
-        return False
+        if type(self.name) == Field:
+            store = "load $\n\tstore_field"
+        return f"{val}\t{store} {name}"
 
-    def fill_typs(self):
-        self.typ = self.val.get_typ()
-        typ = self.typ
-        val = self.val
+    def fill_typs(self, env):
+        self.typ = env[self.val].typs
+        self.val = env[self.val]
 
-        #self.vars[self.name].set_typ(typ)
-        #self.vars[self.name].set_val(val)
+        if type(self.name) == Field:
+            self.name.fill_typs(env)
 
 
 @v_args(inline=True)
@@ -677,6 +476,7 @@ class RewriteTree(Transformer):
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
     def __init__(self):
+        """
         filename = sys.argv[1].split("/")[-1].split(".")[-2]
         print(f".class {filename}:Obj\n.method $constructor")
         if len(var_list) > 0:
@@ -686,6 +486,8 @@ class BuildTree(Transformer):
                 li.append(var)
             print(",".join(li))
         print("\tenter", end="")
+        """
+        pass
     
     def program(self, left, right):
         return Program(left, right)
@@ -805,7 +607,6 @@ class BuildTree(Transformer):
 preprocessor = Lark(quack_grammar, parser='lalr', transformer=RewriteTree())
 preprocessor = preprocessor.parse
 
-
 def main():
     if len(sys.argv) != 2:
         print("Usage: python3 parser.py [name]")
@@ -813,12 +614,25 @@ def main():
 
     with open(sys.argv[1]) as f:
         s = f.read()
-    
+
+    filename = sys.argv[1].split("/")[-1].split(".")[-2]
+
+    output = f".class {filename}:Obj\n.method $constructor\n"
+    if len(var_list) > 0:
+        output += ".local "
+        li = []
+        for var in var_list:
+            li.append(var)
+        output += ",".join(li)
+    output += "\tenter\n"
+
     pre = preprocessor(s)
     tree = BuildTree().transform(pre)
-    output = tree.get_assembly()
-    print(output)
-    print("\tconst nothing\n\treturn 0")
+    output += tree.get_assembly()
+    output += "\n\tconst nothing\n\treturn 0"
+
+    with open(filename + ".asm", "w") as f:
+        f.write(output)
 
 if __name__ == '__main__':
     main()
