@@ -14,6 +14,7 @@ while_count = 0
 # Global
 
 current_class = None
+current_function = None
 
 # Abstract Base Class
 
@@ -134,7 +135,7 @@ class BinOp(ASTNode):
         self.op = op
         self.left = left
         self.right = right
-        self.typ = "Int"
+        self.typ = types["Int"]
 
     def get_assembly(self):
         left = self.left.get_assembly()
@@ -147,7 +148,7 @@ class Negate(ASTNode):
     def __init__(self, val):
         super().__init__()
         self.val = val
-        self.typ = "Int"
+        self.typ = types["Int"]
 
     def get_assembly(self):
         val = self.val.get_assembly()
@@ -159,20 +160,23 @@ class Methodcall(ASTNode):
     def __init__(self, val, method, args):
         super().__init__()
         self.typ = set()
-        if len(val.get_typ()) > 0:
-            for typ in val.get_typ():
-                assert method in types[typ.name].methods, f"Type Checker: {typ} does not have a {method} method!"
-                new_typ = types[typ.name].methods[method]
-                break
-            self.typ.add(new_typ)
         self.method = method
         self.val = val
         self.args = args
         
 
     def get_assembly(self):
-        typs = list(self.val.get_typ())
-        typ = "Unknown"
+        val = self.val
+        method = self.method
+        if len(val.get_typ()) > 0:
+            for typ in val.get_typ():
+                assert method in types[typ.name].methods, f"Type Checker: {typ} does not have a {method} method!"
+                new_typ = types[types[typ.name].methods[method].ret]
+                break
+            self.typ.add(new_typ)
+
+        typs = list(val.get_typ())
+        typ = types["Int"]
         while len(typs) > 1:
             ancestor = typs[0].get_common_ancestor(typs[1])
             if len(typs) == 2:
@@ -180,7 +184,8 @@ class Methodcall(ASTNode):
             else:
                 typs = [ancestor] + typs[2:]
 
-        typ = typs[0]
+        if len(typs) > 0:
+            typ = typs[0]
 
         method = self.method
         val = self.val.get_assembly()
@@ -195,7 +200,7 @@ class Methodcall(ASTNode):
         text = f"{val}{arg}{roll}\tcall {typ.name}:{method}\n"
 
         if method == "print":
-            text += "\tpop\n"
+            text += "\tpop"
 
         return text
 
@@ -211,6 +216,24 @@ class Function(ASTNode):
         self.program = program
         self.ret = ret
 
+    def get_assembly(self):
+        params = {}
+        for param in self.params:
+            params[param[0]] = param[1]
+
+        types[current_class].methods[self.name] = Method(self.name, self.typ, params)
+
+        program = ""
+        for line in program:
+            program += line.get_assembly()
+
+        ret = self.ret.get_assembly()
+        if type(self.ret) == Field:
+            ret = "load $\n\tload_field " + ret
+
+        text = f".method {self.name}\n\tenter\n{program}\t{ret}\treturn {len(self.params)}"
+        return text
+
 class Field(ASTNode):
     def __init__(self, val, field):
         super().__init__()
@@ -220,16 +243,7 @@ class Field(ASTNode):
         self.field = field
 
     def get_assembly(self):
-        typs = list(self.typs)
-        typ = "Unknown"
-        while len(typs) > 1:
-            ancestor = typs[0].get_common_ancestor(typs[1])
-            if len(typs) == 2:
-                typs = [ancestor]
-            else:
-                typs = [ancestor] + typs[2:]
-
-        typ = typs[0]
+        typ = types[current_class].props[self.field]
 
         if self.val == "$":
             types[current_class].props[str(self.field)] = typ
@@ -264,20 +278,19 @@ class Class(ASTNode):
         self.code = code
         self.funcs = funcs
 
-        env = {}
+        types[self.name] = Type(self.name, parent, [], {}, {})
+
         for param in self.params:
             s = set()
             s.add(types[self.params[param]])
-            env[param] = Var(param, s, param)
-            env[param].set_valid()
+            types[self.name].props[param] = Var(param, s, param)
+            types[self.name].props[param].set_valid()
 
         for piece in self.code:
             if type(piece) == Assignment:
-                piece.fill_typs(env)
+                piece.fill_typs(types[self.name].props)
 
         parent = types[self.parent]
-
-        types[self.name] = Type(self.name, parent, [], self.funcs, {})
 
         var_list[self.name] = {}
 
@@ -310,14 +323,15 @@ class Class(ASTNode):
 
         funcs = ""
         for func in self.funcs:
-            funcs += func.get_assembly()
+            if func != 'print':
+                funcs += self.funcs[func].get_assembly()
 
         fields = ""
         for key in types[current_class].props:
             fields += f".field {key}\n"
 
         with open(f"{self.name}.asm", "w") as fil:
-            fil.write(f".class {name}:{parent}\n{fields}{code}{funcs}\tload $\n\treturn {len(self.params)}")
+            fil.write(f".class {name}:{parent}\n{fields}{code}\tload $\n\treturn {len(self.params)}\n\n{funcs}")
         return ""
 
 class Instance(ASTNode):
@@ -334,7 +348,12 @@ class Instance(ASTNode):
         for arg in self.args:
             ret += arg.get_assembly()
 
-        return f"{ret}\tnew {name}\n\tcall {name}:$constructor"
+        return f"{ret}\tnew {name}\n\tcall {name}:$constructor\n"
+
+    def get_typ(self):
+        s = set()
+        s.add(types[self.name])
+        return s
 
 
 # Constants
@@ -452,27 +471,6 @@ class RewriteTree(Transformer):
     def lt(self, a, b):
         return self._arithmetic(a, b, "less")
 
-    '''
-    def typed(self, name, typ, value):
-        typ = get_typ_by_name(str(typ.children[0]))
-
-        cur_types = set()
-        cur_types.add(typ)
-
-        if str(name.children[0]) not in var_list:
-            self.vars[str(name.children[0])] = Var(str(name.children[0]), cur_types, str(value.children[0].children[0]))
-        else:
-            self.vars[str(name.children[0])].typ.add(typ)
-
-        return Tree(Token('RULE', 'typed'), [name, typ, value])
-    
-    def untyped(self, name, value):
-        self.vars[str(name.children[0])] = Var(str(name.children[0]), set(), str(value.children[0].children[0]))
-
-        return Tree(Token('RULE', 'untyped'), [name, value])
-    '''
-
-
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
     def __init__(self):
@@ -495,9 +493,6 @@ class BuildTree(Transformer):
     def statement(self, node):
         return node
 
-    def lexp(self, name):
-        return str(name)
-
     def field(self, parent, name):
         return Field(parent, name)
     
@@ -511,7 +506,7 @@ class BuildTree(Transformer):
         return Assignment(name, val)
 
     def var(self, name):
-        return name
+        return str(name)
     
     def rexp(self, math_node):
         return math_node
@@ -526,7 +521,7 @@ class BuildTree(Transformer):
         return Methodcall(val, method, args)
 
     def field(self, val, field):
-        return Field(val, field)
+        return Field(val, str(field))
     
     def loop(self, condition, block):
         return Loop(condition, block)
@@ -595,9 +590,9 @@ class BuildTree(Transformer):
         return li
 
     def funcs(self, *funcs):
-        li = []
+        li = {} 
         for func in funcs:
-            li.append(func)
+            li.update({func.name: func})
         return li
 
     def func(self, name, params, typ, program, ret):
