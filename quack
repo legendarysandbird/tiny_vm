@@ -2,6 +2,9 @@
 filename=$1
 no_ext=$(basename $filename)
 
-python3 parser.py $filename >${filename%.*}.asm &&\
-python3 assemble.py ${filename%.*}.asm >OBJ/${no_ext%.*}.json &&\
-./tiny_vm ${no_ext%.*}
+python3 parser.py $filename >tmp000.txt
+for line in $(cat tmp000.txt);
+	do python3 assemble.py $line.asm OBJ/$line.json;
+done;
+./tiny_vm $line
+rm tmp000.txt

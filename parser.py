@@ -20,6 +20,7 @@ current_function = None
 
 node_list = []
 var_list = {}
+file_list = []
 
 class ASTNode:
     def __init__(self):
@@ -297,6 +298,8 @@ class Class(ASTNode):
         for local in params:
             var_list[self.name][local] = Var(local, params[local], "Unknown")
 
+        file_list.append(self.name)
+
     def __str__(self):
         return f"Class: {self.name}"
 
@@ -473,20 +476,6 @@ class RewriteTree(Transformer):
 
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
-    def __init__(self):
-        """
-        filename = sys.argv[1].split("/")[-1].split(".")[-2]
-        print(f".class {filename}:Obj\n.method $constructor")
-        if len(var_list) > 0:
-            print(".local ", end="")
-            li = []
-            for var in var_list:
-                li.append(var)
-            print(",".join(li))
-        print("\tenter", end="")
-        """
-        pass
-    
     def program(self, left, right):
         return Program(left, right)
     
@@ -612,6 +601,8 @@ def main():
 
     filename = sys.argv[1].split("/")[-1].split(".")[-2]
 
+    file_list.append(filename)
+
     output = f".class {filename}:Obj\n.method $constructor\n"
     if len(var_list) > 0:
         output += ".local "
@@ -628,6 +619,8 @@ def main():
 
     with open(filename + ".asm", "w") as f:
         f.write(output)
+
+    print("\n".join(reversed(file_list)))
 
 if __name__ == '__main__':
     main()
