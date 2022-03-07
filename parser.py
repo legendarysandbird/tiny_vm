@@ -223,7 +223,7 @@ class Methodcall(ASTNode):
         self.val.update_info()
         #assert self.method in types[typ.name].methods, f"Type Checker: {typ} does not have a {method} method!"
         self.typ = self.val.get_typ()
-        self.ret = types[self.typ.name].methods[self.method].ret
+        #self.ret = types[self.typ.name].methods[self.method].ret
     
     def get_typ(self):
         return self.typ
@@ -240,8 +240,16 @@ class Function(ASTNode):
     def get_assembly(self):
         global current_function; current_function = self.name
 
+        local = ""
+        if len(var_list[current_class][current_function]) > 0:
+            local = []
+            for var in var_list[current_class][current_function]:
+                local.append(var)
+
+            local = ".local " + ",".join(local) + "\n"
+
         program = ""
-        for line in program:
+        for line in self.program:
             program += line.get_assembly()
 
         ret = self.ret.get_assembly()
@@ -250,14 +258,19 @@ class Function(ASTNode):
 
         current_function = "Constr"
 
-        text = f".method {self.name}\n\tenter\n{program}\t{ret}\treturn {len(self.params)}"
+        text = f".method {self.name}\n{local}\tenter\n{program}{ret}\treturn {len(self.params)}"
         return text
 
     def update_info(self):
         global current_function; current_function = self.name
-        self.name.update_info()
-        self.params.update_info()
-        self.program.update_info()
+
+        var_list[current_class][current_function] = {}
+
+        for parts in self.program:
+            parts.update_info()
+
+        if type(self.ret) == str:
+            self.ret = var_list[current_class][current_function][self.ret]
         self.ret.update_info()
 
         params = {}
@@ -273,24 +286,24 @@ class Field(ASTNode):
         super().__init__()
         self.val = val
         self.field = field
+        self.valid = False
 
     def get_assembly(self):
-        return f"{self.val}:{self.field}\n"
+        assert self.valid, f"Field {self.field.name} has not been initialized before use"
+        return f"\tload $\n\tload_field {self.val}:{self.field.name}\n"
 
-    def fill_typs(self, env):
-        self.typs = env[self.field].typs
-
-    def update_info(self, env):
-        self.val.update_info()
+    def update_info(self):
+        self.field = var_list[current_class][self.field]
         self.field.update_info()
+        self.valid = True
 
-        self.typ = types[current_class].props[self.field]
+        self.typ = self.field.get_typ()
 
         if self.val == "this":
             self.val = "$"
 
-        if self.val == "$":
-            types[current_class].props[str(self.field)] = typ
+    def get_typ(self):
+        return self.typ
 
 class Class(ASTNode):
     def __init__(self, name, params, parent, code, funcs):
@@ -309,6 +322,14 @@ class Class(ASTNode):
 
         code = ".method $constructor\n"
 
+        local = ""
+        if len(var_list[current_class][current_function]) > 0:
+            local = []
+            for var in var_list[current_class][current_function]:
+                local.append(var)
+
+            local = ".local " + ",".join(local) + "\n"
+
         if len(self.params) > 0:
             code += ".args "
             li = []
@@ -316,7 +337,7 @@ class Class(ASTNode):
                 li.append(param)
             code += ",".join(li) + "\n"
 
-        code += "\tenter\n"
+        code += f"{local}\tenter\n"
 
         for line in self.code:
             code += line.get_assembly()
@@ -327,8 +348,9 @@ class Class(ASTNode):
                 funcs += self.funcs[func].get_assembly()
 
         fields = ""
-        for key in types[current_class].props:
-            fields += f".field {key}\n"
+        for key in var_list[current_class]:
+            if key != "Constr" and key not in types[current_class].methods:
+                fields += f".field {key}\n"
 
         current_class = "Global"
 
@@ -345,14 +367,14 @@ class Class(ASTNode):
 
         for param in self.params:
             v = Var(param, types[self.params[param]])
-            v.set_valid()
+            v.valid = True
             var_list[current_class][current_function][param] = v
 
         for item in self.code:
             item.update_info()
-        
+
         for func in self.funcs:
-            func.update_info()
+            self.funcs[func].update_info()
 
         current_class = "Global"
 
@@ -372,6 +394,9 @@ class Instance(ASTNode):
     def update_info(self):
         for arg in self.args:
             arg.update_info()
+
+    def get_typ(self):
+        return types[self.name]
 
 # Constants
 
@@ -417,9 +442,6 @@ class Var(ASTNode):
         self.typs.add(typ)
         self.valid = False
 
-    def set_valid(self):
-        self.valid = True
-
     def get_typ(self):
         typs = list(self.typs)
         while len(typs) > 1:
@@ -433,7 +455,7 @@ class Var(ASTNode):
         return f"\tload {self.name}\n"
 
     def update_info(self):
-        return
+        self.valid = True
 
 class Assignment(ASTNode):
     def __init__(self, name, val):
@@ -443,26 +465,30 @@ class Assignment(ASTNode):
         self.typ = "Unknown"
 
     def get_assembly(self):
+        self.name.valid = True
         val = self.val.get_assembly()
-        name = self.name.name
         store = "store"
 
         if type(self.name) == Field:
+            name = "$:" + self.name.field.name + "\n"
             store = "load $\n\tstore_field"
-        return f"{val}\t{store} {name}\n"
-
-    def fill_typs(self, env):
-        self.typ = env[self.val].typs
-        self.val = env[self.val]
-
-        if type(self.name) == Field:
-            self.name.fill_typs(env)
+        else:
+            name = self.name.name + "\n"
+        return f"{val}\t{store} {name}"
 
     def update_info(self):
+        if type(self.val) == str:
+            self.val = var_list[current_class][current_function][self.val]
+
         self.val.update_info()
-        var_list[current_class][current_function][self.name] = Var(self.name, self.val.typ)
-        self.name = var_list[current_class][current_function][self.name]
-        self.name.set_valid()
+
+        if type(self.name) != Field:
+            var_list[current_class][current_function][self.name] = Var(self.name, self.val.get_typ())
+            self.name = var_list[current_class][current_function][self.name]
+            self.name.update_info()
+        else:
+            var_list[current_class][self.name.field] = Var(self.name.field, self.val.get_typ())
+            self.name.update_info()
         self.typ = self.name.get_typ()
 
 @v_args(inline=True)    # Affects the signatures of the methods
@@ -473,9 +499,6 @@ class BuildTree(Transformer):
     def statement(self, node):
         return node
 
-    def field(self, parent, name):
-        return Field(parent, name)
-    
     def typ(self, name):
         return str(name)
 
@@ -498,7 +521,7 @@ class BuildTree(Transformer):
         return String(text)
 
     def methodcall(self, val, method, args=""):
-        return Methodcall(val, method, args)
+        return Methodcall(val, str(method), args)
 
     def field(self, val, field):
         return Field(val, str(field))
