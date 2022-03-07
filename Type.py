@@ -1,10 +1,9 @@
 # Possible types
 
 class Type:
-    def __init__(self, name, parent, children, methods, props):
+    def __init__(self, name, parent, methods, props):
         self.name = name
         self.parent = parent
-        self.children = children
         self.methods = methods
         self.props = props
 
@@ -12,7 +11,7 @@ class Type:
         return f"{self.name.upper()}"
 
     def __repr__(self):
-        return f"Type({self.name}, {self.parent}, {self.children}, {self.methods}, {self.props})"
+        return f"Type({self.name}, {self.parent}, {self.methods}, {self.props})"
 
     def get_common_ancestor(self, other):
         type1 = self
@@ -46,11 +45,11 @@ MULT = Method("mult", "Int", {})
 DIV = Method("div", "Int", {})
 
 
-Obj = Type("Obj", None, ["Int", "String"], {"string": STR, "print": PRNT, "equals": EQLS}, {})
-String = Type("String", Obj, [], {"string": STR, "print": PRNT, "equals": EQLS, "less": LESS, "plus": CAT}, {})
-Int = Type("Int", Obj, [], {"plus": PLUS, "sub": SUB, "mult": MULT, "div": DIV, "less": LESS, "equals": EQLS, "print": PRNT, "string": STR}, {})
-Boolean = Type("Boolean", Obj, [], {"string": STR, "print": PRNT, "equals": EQLS}, {})
-Nothing = Type("Nothing", None, [], {}, {})
+Obj = Type("Obj", None, {"string": STR, "print": PRNT, "equals": EQLS}, {})
+String = Type("String", Obj, {"string": STR, "print": PRNT, "equals": EQLS, "less": LESS, "plus": CAT}, {})
+Int = Type("Int", Obj, {"plus": PLUS, "sub": SUB, "mult": MULT, "div": DIV, "less": LESS, "equals": EQLS, "print": PRNT, "string": STR}, {})
+Boolean = Type("Boolean", Obj, {"string": STR, "print": PRNT, "equals": EQLS}, {})
+Nothing = Type("Nothing", None, {}, {})
 
 types = {
         "Obj": Obj,

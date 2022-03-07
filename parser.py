@@ -14,12 +14,12 @@ while_count = 0
 # Global
 
 current_class = "Global"
-current_function = "Constructor"
+current_function = "Constr"
 
 # Abstract Base Class
 
 node_list = []
-var_list = {"Global": {}}
+var_list = {"Global": {"Constr": {}}}
 file_list = []
 
 class ASTNode:
@@ -40,7 +40,9 @@ class Program(ASTNode):
         self.right = right
 
     def get_assembly(self):
-        return f"{self.left}{self.right}"
+        left = self.left.get_assembly()
+        right = self.right.get_assembly()
+        return f"{left}{right}"
 
     def update_info(self):
         self.left.update_info()
@@ -195,6 +197,7 @@ class Methodcall(ASTNode):
         self.val = val
         self.args = args
         self.typ = "Unknown"
+        self.ret = "Unknown"
         
     def get_assembly(self):
         val = self.val.get_assembly()
@@ -210,18 +213,20 @@ class Methodcall(ASTNode):
         text = f"{val}{arg}{roll}\tcall {self.typ.name}:{self.method}\n"
 
         if self.method == "print":
-            text += "\tpop"
+            text += "\tpop\n"
 
         return text
 
     def update_info(self):
-        print("Here:", self.method)
-        self.method.update_info()
+        if type(self.val) == str:
+            self.val = var_list[current_class][current_function][self.val]
         self.val.update_info()
-        self.args.update_info()
-
         #assert self.method in types[typ.name].methods, f"Type Checker: {typ} does not have a {method} method!"
-        self.typ = types[current_class].methods[self.method.name].ret.get_typ()
+        self.typ = self.val.get_typ()
+        self.ret = types[self.typ.name].methods[self.method].ret
+    
+    def get_typ(self):
+        return self.typ
 
 class Function(ASTNode):
     def __init__(self, name, params, typ, program, ret):
@@ -233,6 +238,8 @@ class Function(ASTNode):
         self.ret = ret
 
     def get_assembly(self):
+        global current_function; current_function = self.name
+
         program = ""
         for line in program:
             program += line.get_assembly()
@@ -241,10 +248,13 @@ class Function(ASTNode):
         if type(self.ret) == Field:
             ret = "load $\n\tload_field " + ret
 
+        current_function = "Constr"
+
         text = f".method {self.name}\n\tenter\n{program}\t{ret}\treturn {len(self.params)}"
         return text
 
     def update_info(self):
+        global current_function; current_function = self.name
         self.name.update_info()
         self.params.update_info()
         self.program.update_info()
@@ -255,6 +265,8 @@ class Function(ASTNode):
             params[param[0]] = param[1]
 
         types[current_class].methods[self.name] = Method(self.name, self.typ, params)
+
+        current_function = "Constr"
 
 class Field(ASTNode):
     def __init__(self, val, field):
@@ -318,6 +330,8 @@ class Class(ASTNode):
         for key in types[current_class].props:
             fields += f".field {key}\n"
 
+        current_class = "Global"
+
         with open(f"{self.name}.asm", "w") as fil:
             fil.write(f".class {self.name}:{self.parent}\n{fields}{code}\tload $\n\treturn {len(self.params)}\n\n{funcs}")
         return ""
@@ -325,30 +339,22 @@ class Class(ASTNode):
     def update_info(self):
         global current_class; current_class = self.name
 
-        types[self.name] = Type(self.name, parent, [], {}, {})
-
-        for param in self.params:
-            s = set()
-            s.add(types[self.params[param]])
-            types[self.name].props[param] = Var(param, s, param)
-            types[self.name].props[param].set_valid()
-
-        for piece in self.code:
-            if type(piece) == Assignment:
-                piece.fill_typs(types[self.name].props)
-
-        var_list[self.name] = {}
-
-        for local in params:
-            var_list[self.name][local] = Var(local, params[local], "Unknown")
-
+        var_list[current_class] = {"Constr": {}}
+        types[self.name] = Type(self.name, self.parent, {}, {})
         file_list.append(self.name)
 
-        self.names.update_info()
-        self.params.update_info()
-        self.parent.update_info()
-        self.code.update_info()
-        self.funcs.update_info()
+        for param in self.params:
+            v = Var(param, types[self.params[param]])
+            v.set_valid()
+            var_list[current_class][current_function][param] = v
+
+        for item in self.code:
+            item.update_info()
+        
+        for func in self.funcs:
+            func.update_info()
+
+        current_class = "Global"
 
 class Instance(ASTNode):
     def __init__(self, name, args):
@@ -364,8 +370,8 @@ class Instance(ASTNode):
         return f"{ret}\tnew {self.name}\n\tcall {self.name}:$constructor\n"
 
     def update_info(self):
-        self.name.update_info()
-        self.args.update_info()
+        for arg in self.args:
+            arg.update_info()
 
 # Constants
 
@@ -377,12 +383,14 @@ class Const(ASTNode):
     def get_assembly(self):
         return f"\tconst {self.val}\n"
 
+    def get_typ(self):
+        return self.typ
+
 class Number(Const):
     def __init__(self, val):
         super().__init__(val)
 
     def update_info(self):
-        self.val.update_info()
         self.typ = types["Int"]
 
 class String(Const):
@@ -390,7 +398,6 @@ class String(Const):
         super().__init__(val)
 
     def update_info(self):
-        self.val.update_info()
         self.typ = types["String"]
 
 class Bool(Const):
@@ -398,32 +405,35 @@ class Bool(Const):
         super().__init__(val)
 
     def update_info(self):
-        self.val.update_info()
         self.typ = types["String"]
 
 # Variables
 
 class Var(ASTNode):
-    def __init__(self, name, typ, val):
+    def __init__(self, name, typ):
         super().__init__()
         self.name = name
-        self.typs = typ
-        self.val = val
+        self.typs = set()
+        self.typs.add(typ)
         self.valid = False
 
     def set_valid(self):
         self.valid = True
 
     def get_typ(self):
-        raise NotImplementedError("TODO")
+        typs = list(self.typs)
+        while len(typs) > 1:
+            typ0 = typs.pop()
+            typ1 = typs.pop()
+            typs.append(typ0.get_common_ancestor(typ1))
+        return typs[0]
 
     def get_assembly(self):
         assert self.valid, f"Variable {self.name} has not been initialized before use"
         return f"\tload {self.name}\n"
 
     def update_info(self):
-        self.name.update_info()
-        self.val.update_info()
+        return
 
 class Assignment(ASTNode):
     def __init__(self, name, val):
@@ -434,12 +444,12 @@ class Assignment(ASTNode):
 
     def get_assembly(self):
         val = self.val.get_assembly()
-        name = self.name.get_assembly()
+        name = self.name.name
         store = "store"
 
         if type(self.name) == Field:
             store = "load $\n\tstore_field"
-        return f"{val}\t{store} {name}"
+        return f"{val}\t{store} {name}\n"
 
     def fill_typs(self, env):
         self.typ = env[self.val].typs
@@ -449,37 +459,11 @@ class Assignment(ASTNode):
             self.name.fill_typs(env)
 
     def update_info(self):
-        self.name.update_info()
         self.val.update_info()
-
-        self.typ = val.typ
-
-@v_args(inline=True)
-class RewriteTree(Transformer):
-    def _arithmetic(self, a, b, name):
-        return Tree(Token('Rule', 'methodcall'),
-                    [Tree(Token('RULE', 'quark'), [a]), #Left
-                    Tree(Token('NAME', name), [name]), #Right
-                    b #Arg
-                    ])
-
-    def plus(self, a, b):
-        return self._arithmetic(a, b, "plus")
-
-    def sub(self, a, b):
-        return self._arithmetic(a, b, "sub")
-
-    def mult(self, a, b):
-        return self._arithmetic(a, b, "mult")
-
-    def div(self, a, b):
-        return self._arithmetic(a, b, "div")
-
-    def eq(self, a, b):
-        return self._arithmetic(a, b, "equals")
-
-    def lt(self, a, b):
-        return self._arithmetic(a, b, "less")
+        var_list[current_class][current_function][self.name] = Var(self.name, self.val.typ)
+        self.name = var_list[current_class][current_function][self.name]
+        self.name.set_valid()
+        self.typ = self.name.get_typ()
 
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
@@ -575,7 +559,7 @@ class BuildTree(Transformer):
         return arg
 
     def class_create(self, name, args):
-        ins = Instance(name, args)
+        ins = Instance(str(name), args)
         return ins
 
     def block(self, *programs):
@@ -595,8 +579,23 @@ class BuildTree(Transformer):
         func = Function(name, params, typ, program, ret)
         return func
 
-preprocessor = Lark(quack_grammar, parser='lalr', transformer=RewriteTree())
-preprocessor = preprocessor.parse
+    def plus(self, a, b):
+        return Methodcall(a, "plus", b)
+
+    def sub(self, a, b):
+        return Methodcall(a, "sub", b)
+
+    def mult(self, a, b):
+        return Methodcall(a, "mult", b)
+
+    def div(self, a, b):
+        return Methodcall(a, "div", b)
+
+    def eq(self, a, b):
+        return Methodcall(a, "equals", b)
+
+    def lt(self, a, b):
+        return Methodcall(a, "less", b)
 
 def main():
     if len(sys.argv) != 2:
@@ -611,19 +610,18 @@ def main():
     file_list.append(filename)
 
     output = f".class {filename}:Obj\n.method $constructor\n"
-    if len(var_list) > 0:
+    if len(var_list["Global"]["Constr"]) > 0:
         output += ".local "
         li = []
-        for var in var_list:
+        for var in var_list["Global"]["Constr"]:
             li.append(var)
         output += ",".join(li)
     output += "\tenter\n"
 
-    pre = preprocessor(s)
-    tree = BuildTree().transform(pre)
+    tree = Lark(quack_grammar, parser="lalr", transformer=BuildTree()).parse(s)
     tree.update_info()
     output += tree.get_assembly()
-    output += "\n\tconst nothing\n\treturn 0"
+    output += "\tconst nothing\n\treturn 0"
 
     with open(filename + ".asm", "w") as f:
         f.write(output)

@@ -32,20 +32,20 @@ quack_grammar = r"""
 
     loop: "while" "(" rexp ")" "{" program "}"
 
-    condif: "if" rexp "{" program "}" [condelif] [condelse]
+    condif: "if" "(" rexp ")" "{" program "}" [condelif] [condelse]
 
-    condelif: "elif" rexp "{" program "}" [condelif]
+    condelif: "elif" "(" rexp ")" "{" program "}" [condelif]
 
     condelse: "else" "{" program "}"
 
-    methodcall: quark "." NAME "(" ")"
-        | quark "." NAME "(" atom ")"
+    methodcall: lexp "." NAME "(" ")"
+        | lexp "." NAME "(" atom ")"
         | atom "." NAME "(" ")"
         | atom "." NAME "(" atom ")"
 
     class_create: NAME "(" args ")"
 
-    rexp: sum
+    rexp: relation
 
     ?lexp: NAME                 -> var
         | lexp "." NAME         -> field
