@@ -13,13 +13,13 @@ while_count = 0
 
 # Global
 
-current_class = None
-current_function = None
+current_class = "Global"
+current_function = "Constructor"
 
 # Abstract Base Class
 
 node_list = []
-var_list = {}
+var_list = {"Global": {}}
 file_list = []
 
 class ASTNode:
@@ -29,6 +29,10 @@ class ASTNode:
     def get_assembly(self):
         NotImplementedError(f"{self.__name} should have a get_assembly method")
 
+    def update_info(self):
+        NotImplementedError(f"{self.__name} should have an update_info method")
+
+
 class Program(ASTNode):
     def __init__(self, left, right):
         super().__init__()
@@ -36,9 +40,11 @@ class Program(ASTNode):
         self.right = right
 
     def get_assembly(self):
-        left = self.left.get_assembly()
-        right = self.right.get_assembly()
-        return f"{left}{right}"
+        return f"{self.left}{self.right}"
+
+    def update_info(self):
+        self.left.update_info()
+        self.right.update_info()
 
 # Control Flow
 
@@ -75,6 +81,14 @@ class If(ASTNode):
         
         return msg
 
+    def update_info(self):
+        self.condition.update_info()
+        self.block.update_info()
+        if self.elif_node is not None:
+            self.elif_node.update_info()
+        if self.else_node is not None:
+            self.else_node.update_info()
+
 class Elif(ASTNode):
     def __init__(self, condition, block, elif_node):
         super().__init__()
@@ -100,6 +114,12 @@ class Elif(ASTNode):
         elif_inner_count += 1
         return msg
 
+    def update_info(self):
+        self.condition.update_info()
+        self.block.update_info()
+        if self.elif_node is not None:
+            self.elif_node.update_info()
+
 class Else(ASTNode):
     def __init__(self, block):
         super().__init__()
@@ -110,6 +130,9 @@ class Else(ASTNode):
         block = self.block.get_assembly()
         
         return f"else{else_count}:\n{block}"
+
+    def update_info(self):
+        self.block.update_info()
 
 class Loop(ASTNode):
     def __init__(self, condition, block):
@@ -128,6 +151,10 @@ class Loop(ASTNode):
 
         return msg
 
+    def update_info(self):
+        self.condition.update_info()
+        self.block.update_info()
+
 # Arithmetic Operations
 
 class BinOp(ASTNode):
@@ -141,9 +168,12 @@ class BinOp(ASTNode):
     def get_assembly(self):
         left = self.left.get_assembly()
         right = self.right.get_assembly()
-        typ = self.typ
-        op = self.op
-        return f"{left}{right}\tcall {typ}:{op}\n"
+        return f"{left}{right}\tcall {self.typ}:{self.op}\n"
+
+    def update_info(self):
+        self.op.update_info()
+        self.left.update_info()
+        self.right.update_info()
 
 class Negate(ASTNode):
     def __init__(self, val):
@@ -153,60 +183,45 @@ class Negate(ASTNode):
 
     def get_assembly(self):
         val = self.val.get_assembly()
-        typ = self.typ
-        el = Element(a.typ, f"\tconst 0\n{a.text}\tcall {a.typ}:sub\n")
-        return f"\tconst 0\n{val}\tcall {typ}:sub\n"
+        return f"\tconst 0\n{val}\tcall {self.typ}:sub\n"
+
+    def update_info(self):
+        self.val.update_info()
 
 class Methodcall(ASTNode):
     def __init__(self, val, method, args):
         super().__init__()
-        self.typ = set()
         self.method = method
         self.val = val
         self.args = args
+        self.typ = "Unknown"
         
-
     def get_assembly(self):
-        val = self.val
-        method = self.method
-        if len(val.get_typ()) > 0:
-            for typ in val.get_typ():
-                assert method in types[typ.name].methods, f"Type Checker: {typ} does not have a {method} method!"
-                new_typ = types[types[typ.name].methods[method].ret]
-                break
-            self.typ.add(new_typ)
-
-        typs = list(val.get_typ())
-        typ = types["Int"]
-        while len(typs) > 1:
-            ancestor = typs[0].get_common_ancestor(typs[1])
-            if len(typs) == 2:
-                typs = [ancestor]
-            else:
-                typs = [ancestor] + typs[2:]
-
-        if len(typs) > 0:
-            typ = typs[0]
-
-        method = self.method
         val = self.val.get_assembly()
         arg = self.args
+
         if arg != "":
             arg = self.args.get_assembly()
         roll = ""
 
-        if method == "sub" or method == "div" or method == "less":
+        if self.method == "sub" or self.method == "div" or self.method == "less":
             roll = "\troll 1\n"
 
-        text = f"{val}{arg}{roll}\tcall {typ.name}:{method}\n"
+        text = f"{val}{arg}{roll}\tcall {self.typ.name}:{self.method}\n"
 
-        if method == "print":
+        if self.method == "print":
             text += "\tpop"
 
         return text
 
-    def get_typ(self):
-        return self.typ
+    def update_info(self):
+        print("Here:", self.method)
+        self.method.update_info()
+        self.val.update_info()
+        self.args.update_info()
+
+        #assert self.method in types[typ.name].methods, f"Type Checker: {typ} does not have a {method} method!"
+        self.typ = types[current_class].methods[self.method.name].ret.get_typ()
 
 class Function(ASTNode):
     def __init__(self, name, params, typ, program, ret):
@@ -218,12 +233,6 @@ class Function(ASTNode):
         self.ret = ret
 
     def get_assembly(self):
-        params = {}
-        for param in self.params:
-            params[param[0]] = param[1]
-
-        types[current_class].methods[self.name] = Method(self.name, self.typ, params)
-
         program = ""
         for line in program:
             program += line.get_assembly()
@@ -235,40 +244,41 @@ class Function(ASTNode):
         text = f".method {self.name}\n\tenter\n{program}\t{ret}\treturn {len(self.params)}"
         return text
 
+    def update_info(self):
+        self.name.update_info()
+        self.params.update_info()
+        self.program.update_info()
+        self.ret.update_info()
+
+        params = {}
+        for param in self.params:
+            params[param[0]] = param[1]
+
+        types[current_class].methods[self.name] = Method(self.name, self.typ, params)
+
 class Field(ASTNode):
     def __init__(self, val, field):
         super().__init__()
-        if val == "this":
-            val = "$"
         self.val = val
         self.field = field
 
     def get_assembly(self):
-        typ = types[current_class].props[self.field]
-
-        if self.val == "$":
-            types[current_class].props[str(self.field)] = typ
-
         return f"{self.val}:{self.field}\n"
 
     def fill_typs(self, env):
         self.typs = env[self.field].typs
 
-    def get_typ(self):
-        typs = self.typs
-        typ = "Unknown"
-        while len(typs) > 1:
-            ancestor = typs[0].get_common_ancestor(typs[1])
-            if len(typs) == 2:
-                typs = [ancestor]
-            else:
-                typs = [ancestor] + typs[2:]
+    def update_info(self, env):
+        self.val.update_info()
+        self.field.update_info()
 
-        typ = typs[0]
+        self.typ = types[current_class].props[self.field]
 
-        assert self.field in props[typ.name], f"'{typ.name}' has no property '{self.field}'!"
-        
-        return props[typ.name][self.field].name
+        if self.val == "this":
+            self.val = "$"
+
+        if self.val == "$":
+            types[current_class].props[str(self.field)] = typ
 
 class Class(ASTNode):
     def __init__(self, name, params, parent, code, funcs):
@@ -279,36 +289,11 @@ class Class(ASTNode):
         self.code = code
         self.funcs = funcs
 
-        types[self.name] = Type(self.name, parent, [], {}, {})
-
-        for param in self.params:
-            s = set()
-            s.add(types[self.params[param]])
-            types[self.name].props[param] = Var(param, s, param)
-            types[self.name].props[param].set_valid()
-
-        for piece in self.code:
-            if type(piece) == Assignment:
-                piece.fill_typs(types[self.name].props)
-
-        parent = types[self.parent]
-
-        var_list[self.name] = {}
-
-        for local in params:
-            var_list[self.name][local] = Var(local, params[local], "Unknown")
-
-        file_list.append(self.name)
-
     def __str__(self):
         return f"Class: {self.name}"
 
     def get_assembly(self):
-        global current_class
-        current_class = self.name
-
-        name = self.name
-        parent = self.parent
+        global current_class; current_class = self.name
 
         code = ".method $constructor\n"
 
@@ -334,8 +319,36 @@ class Class(ASTNode):
             fields += f".field {key}\n"
 
         with open(f"{self.name}.asm", "w") as fil:
-            fil.write(f".class {name}:{parent}\n{fields}{code}\tload $\n\treturn {len(self.params)}\n\n{funcs}")
+            fil.write(f".class {self.name}:{self.parent}\n{fields}{code}\tload $\n\treturn {len(self.params)}\n\n{funcs}")
         return ""
+
+    def update_info(self):
+        global current_class; current_class = self.name
+
+        types[self.name] = Type(self.name, parent, [], {}, {})
+
+        for param in self.params:
+            s = set()
+            s.add(types[self.params[param]])
+            types[self.name].props[param] = Var(param, s, param)
+            types[self.name].props[param].set_valid()
+
+        for piece in self.code:
+            if type(piece) == Assignment:
+                piece.fill_typs(types[self.name].props)
+
+        var_list[self.name] = {}
+
+        for local in params:
+            var_list[self.name][local] = Var(local, params[local], "Unknown")
+
+        file_list.append(self.name)
+
+        self.names.update_info()
+        self.params.update_info()
+        self.parent.update_info()
+        self.code.update_info()
+        self.funcs.update_info()
 
 class Instance(ASTNode):
     def __init__(self, name, args):
@@ -344,20 +357,15 @@ class Instance(ASTNode):
         self.args = args
 
     def get_assembly(self):
-        name = self.name
-        args = self.args
-
         ret = ""
         for arg in self.args:
             ret += arg.get_assembly()
 
-        return f"{ret}\tnew {name}\n\tcall {name}:$constructor\n"
+        return f"{ret}\tnew {self.name}\n\tcall {self.name}:$constructor\n"
 
-    def get_typ(self):
-        s = set()
-        s.add(types[self.name])
-        return s
-
+    def update_info(self):
+        self.name.update_info()
+        self.args.update_info()
 
 # Constants
 
@@ -367,34 +375,31 @@ class Const(ASTNode):
         self.val = val
 
     def get_assembly(self):
-        val = self.val
-        return f"\tconst {val}\n"
-
-    def get_typ(self):
-        return self.typ
+        return f"\tconst {self.val}\n"
 
 class Number(Const):
     def __init__(self, val):
         super().__init__(val)
-        self.typ = set()
-        typ = types["Int"]
-        self.typ.add(typ)
+
+    def update_info(self):
+        self.val.update_info()
+        self.typ = types["Int"]
 
 class String(Const):
     def __init__(self, val):
         super().__init__(val)
-        self.typ = set()
-        typ = types["String"]
-        self.typ.add(typ)
+
+    def update_info(self):
+        self.val.update_info()
+        self.typ = types["String"]
 
 class Bool(Const):
     def __init__(self, val):
-        super().__init__()
         super().__init__(val)
-        self.typ = set()
-        for typ in types:
-            if typ.name == "Boolean":
-                self.typ.add(typ)
+
+    def update_info(self):
+        self.val.update_info()
+        self.typ = types["String"]
 
 # Variables
 
@@ -406,22 +411,19 @@ class Var(ASTNode):
         self.val = val
         self.valid = False
 
-    def set_typ(self, typ):
-        self.typs = self.typs.union(typ)
-
-    def set_val(self, val):
-        self.val = val
-
     def set_valid(self):
         self.valid = True
 
+    def get_typ(self):
+        raise NotImplementedError("TODO")
+
     def get_assembly(self):
         assert self.valid, f"Variable {self.name} has not been initialized before use"
-        name = self.name
-        return f"\tload {name}\n"
+        return f"\tload {self.name}\n"
 
-    def get_typ(self):
-        return self.typs
+    def update_info(self):
+        self.name.update_info()
+        self.val.update_info()
 
 class Assignment(ASTNode):
     def __init__(self, name, val):
@@ -446,13 +448,18 @@ class Assignment(ASTNode):
         if type(self.name) == Field:
             self.name.fill_typs(env)
 
+    def update_info(self):
+        self.name.update_info()
+        self.val.update_info()
+
+        self.typ = val.typ
 
 @v_args(inline=True)
 class RewriteTree(Transformer):
     def _arithmetic(self, a, b, name):
         return Tree(Token('Rule', 'methodcall'),
-                    [Tree(Token('RULE', 'rexp'), [a]), #Left
-                    Tree(Token('RULE', 'lexp'), [Token('NAME', name)]), #Right
+                    [Tree(Token('RULE', 'quark'), [a]), #Left
+                    Tree(Token('NAME', name), [name]), #Right
                     b #Arg
                     ])
 
@@ -614,6 +621,7 @@ def main():
 
     pre = preprocessor(s)
     tree = BuildTree().transform(pre)
+    tree.update_info()
     output += tree.get_assembly()
     output += "\n\tconst nothing\n\treturn 0"
 

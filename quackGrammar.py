@@ -38,8 +38,8 @@ quack_grammar = r"""
 
     condelse: "else" "{" program "}"
 
-    methodcall: lexp "." NAME "(" ")"
-        | lexp "." NAME "(" atom ")"
+    methodcall: quark "." NAME "(" ")"
+        | quark "." NAME "(" atom ")"
         | atom "." NAME "(" ")"
         | atom "." NAME "(" atom ")"
 
