@@ -32,18 +32,18 @@ quack_grammar = r"""
 
     block: statement* 
 
-    loop: "while" "(" rexp ")" "{" program "}"
+    loop: "while" rexp "{" program "}"
 
-    condif: "if" "(" rexp ")" "{" program "}" [condelif] [condelse]
+    condif: "if" rexp "{" program "}" [condelif] [condelse]
 
-    condelif: "elif" "(" rexp ")" "{" program "}" [condelif]
+    condelif: "elif" rexp "{" program "}" [condelif]
 
     condelse: "else" "{" program "}"
 
     methodcall: lexp "." NAME "(" ")"
-        | lexp "." NAME "(" atom ")"
+        | lexp "." NAME "(" args ")"
         | atom "." NAME "(" ")"
-        | atom "." NAME "(" atom ")"
+        | atom "." NAME "(" args ")"
 
     class_create: NAME "(" args ")"
 

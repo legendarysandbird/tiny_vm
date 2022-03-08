@@ -1,14 +1,19 @@
+/*
+This program demonstrates that a lot of the more basic Quack
+functionality works even in some weird edge cases.
+*/
+
 i = 1;
 i.print();
 
 /* This is a comment.
 It should be ignored */
 
-if (false) {
+if false {
 	"Hi\n".print();
-} elif (i == 1) {
+} elif i == 1 {
 	"Middle\n".print();
-} elif (i == 2) {
+} elif i == 2 {
 	"Other middle\n".print();
 }
 
@@ -16,7 +21,7 @@ if (false) {
 
 j = 2;
 
-while (j < 5) {
+while j < 5 {
 	"Here\n".print();
 	j = j + 1;
 }

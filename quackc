@@ -1,0 +1,10 @@
+#!/bin/sh
+filename=$1
+no_ext=$(basename $filename)
+
+python3 parser.py $filename >tmp000.txt &&
+for line in $(cat tmp000.txt);
+	do python3 assemble.py $line.asm OBJ/$line.json;
+done &&
+./tiny_vm $line
+rm tmp000.txt

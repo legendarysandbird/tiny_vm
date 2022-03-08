@@ -1,3 +1,10 @@
+/*
+This file demonstrates the ability to for classes to be defined
+that can have instance variables and a string method that overrides
+the default string. It's based very closely on a program from the
+Quack documentation
+*/
+
 class Pt(x: Int, y: Int) {
 	this.x = x;
 	this.y = y;
@@ -15,9 +22,11 @@ class Pt(x: Int, y: Int) {
 		this.y = this.y + dy;
 	}
 
-	def plus(other: Pt): Pt {
-		return Pt(this.x + other.x, this.y + other.y);
+	def string(): Str {
+		return "(" + this.x.string() + "," + this.y.string() + ")\n";
 	}
 }
 
-(Pt(3,2) + Pt(4,4)).print();
+p = Pt(1+1, 3);
+p.translate(-5, 2);
+p.print();

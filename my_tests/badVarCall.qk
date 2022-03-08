@@ -1,0 +1,5 @@
+/* This program will fail to compile since i is not yet
+defined when it is called */
+
+i.print();
+i = 3;

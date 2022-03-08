@@ -1,5 +1,4 @@
 # Possible types
-
 class Type:
     def __init__(self, name, parent, methods, props):
         self.name = name
@@ -13,6 +12,7 @@ class Type:
     def __repr__(self):
         return f"Type({self.name}, {self.parent}, {self.methods}, {self.props})"
 
+    # Find common ancestor when you have more than one type
     def get_common_ancestor(self, other):
         type1 = self
         type2 = other
@@ -27,6 +27,7 @@ class Type:
 
         return type1
 
+# Holds information about methods on classes 
 class Method():
     def __init__(self, name, ret, params):
         self.name = name
@@ -44,7 +45,7 @@ SUB = Method("sub", "Int", {})
 MULT = Method("mult", "Int", {})
 DIV = Method("div", "Int", {})
 
-
+# Builtin types
 Obj = Type("Obj", None, {"string": STR, "print": PRNT, "equals": EQLS}, {})
 String = Type("String", Obj, {"string": STR, "print": PRNT, "equals": EQLS, "less": LESS, "plus": CAT}, {})
 Int = Type("Int", Obj, {"plus": PLUS, "sub": SUB, "mult": MULT, "div": DIV, "less": LESS, "equals": EQLS, "print": PRNT, "string": STR}, {})

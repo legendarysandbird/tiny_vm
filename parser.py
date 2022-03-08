@@ -4,24 +4,22 @@ from quackGrammar import quack_grammar
 from Type import *
 
 # Provide unique names to all labels
-
 if_count = 0
 elif_count = 0
 elif_inner_count = 0
 else_count = 0
 while_count = 0
 
-# Global
-
+# Namespace trackers
 current_class = "Global"
 current_function = "Constr"
 
-# Abstract Base Class
-
+# Global information
 node_list = []
 var_list = {"Global": {"Constr": {}}}
 file_list = []
 
+# Abstract Base Class
 class ASTNode:
     def __init__(self):
         node_list.append(self)
@@ -31,7 +29,6 @@ class ASTNode:
 
     def update_info(self):
         NotImplementedError(f"{self.__name} should have an update_info method")
-
 
 class Program(ASTNode):
     def __init__(self, left, right):
@@ -49,7 +46,6 @@ class Program(ASTNode):
         self.right.update_info()
 
 # Control Flow
-
 class If(ASTNode):
     def __init__(self, condition, block, elif_node, else_node):
         super().__init__()
@@ -158,7 +154,6 @@ class Loop(ASTNode):
         self.block.update_info()
 
 # Arithmetic Operations
-
 class BinOp(ASTNode):
     def __init__(self, op, left, right):
         super().__init__()
@@ -221,7 +216,10 @@ class Methodcall(ASTNode):
         if self.method == "sub" or self.method == "div" or self.method == "less" or self.method == "plus":
             roll = "\troll 1\n"
 
-        text = f"{val}{arg}{roll}\tcall {self.typ.name}:{self.method}\n"
+        if type(self.val) == Var:
+            text = f"{arg}{val}{roll}\tcall {self.typ.name}:{self.method}\n"
+        else:
+            text = f"{val}{arg}{roll}\tcall {self.typ.name}:{self.method}\n"
 
         if self.method == "print":
             text += "\tpop\n"
@@ -274,6 +272,7 @@ class Methodcall(ASTNode):
     def get_typ(self):
         return self.typ
 
+# Containers
 class Function(ASTNode):
     def __init__(self, name, params, typ, program, ret):
         super().__init__()
@@ -452,7 +451,6 @@ class Instance(ASTNode):
         return types[self.name]
 
 # Constants
-
 class Const(ASTNode):
     def __init__(self, val):
         super().__init__()
@@ -486,7 +484,6 @@ class Bool(Const):
         self.typ = types["String"]
 
 # Variables
-
 class Var(ASTNode):
     def __init__(self, name, typ):
         super().__init__()
@@ -552,7 +549,10 @@ class Assignment(ASTNode):
 
             self.val.update_info()
 
-            var_list[current_class][current_function][self.name] = Var(self.name, self.val.get_typ())
+            if self.name in var_list[current_class][current_function]:
+                var_list[current_class][current_function][self.name].typs.add(self.val.get_typ())
+            else:
+                var_list[current_class][current_function][self.name] = Var(self.name, self.val.get_typ())
             self.name = var_list[current_class][current_function][self.name]
             self.name.update_info()
         else:
@@ -562,7 +562,10 @@ class Assignment(ASTNode):
 
             self.val.update_info()
 
-            var_list[current_class][name[1]] = Field(name[0], name[1], self.val.get_typ())
+            if name[1] in var_list[current_class]:
+                var_list[current_class][name[1]].typs.add(self.val.get_typ())
+            else:
+                var_list[current_class][name[1]] = Field(name[0], name[1], self.val.get_typ())
             if name[0] == "$" or name[0] == "this":
                 self.name = var_list[current_class][name[1]]
             else:
@@ -691,6 +694,9 @@ class BuildTree(Transformer):
     def sub(self, a, b):
         return Methodcall(a, "sub", [b])
 
+    def neg(self, a):
+        return Methodcall(Number(0), "sub", [a])
+
     def mult(self, a, b):
         return Methodcall(a, "mult", [b])
 
@@ -712,9 +718,9 @@ def main():
         s = f.read()
 
     filename = sys.argv[1].split("/")[-1].split(".")[-2]
-
     file_list.append(filename)
 
+    # Main file assembly
     output = f".class {filename}:Obj\n.method $constructor\n"
     if len(var_list["Global"]["Constr"]) > 0:
         output += ".local "
@@ -724,14 +730,17 @@ def main():
         output += ",".join(li)
     output += "\tenter\n"
 
-    tree = Lark(quack_grammar, parser="lalr", transformer=BuildTree()).parse(s)
-    tree.update_info()
+    tree = Lark(quack_grammar, parser="lalr", transformer=BuildTree()).parse(s) # Build tree
+    tree.update_info() # Fills in missing type information
+
+    # Closing assembly for main file
     output += tree.get_assembly()
     output += "\tconst nothing\n\treturn 0"
 
     with open(filename + ".asm", "w") as f:
         f.write(output)
 
+    # List of built .asm files for the quack script
     print("\n".join(reversed(file_list)))
 
 if __name__ == '__main__':

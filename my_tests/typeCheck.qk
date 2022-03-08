@@ -1,0 +1,11 @@
+/* First we assign i to a string, so the type is string.
+Then we assign i to an int, so the type becomes object.
+So when we call i - 1, we get an error since object has
+no sub method. */
+
+i = "Hello!\n";
+i.print();
+
+i = 3;
+i = i - 1;
+i.print();
