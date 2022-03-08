@@ -203,6 +203,13 @@ class Methodcall(ASTNode):
 
         arg = ""
         for argu in self.args:
+            if type(argu) == str:
+                index = argu.find(".")
+                if index == -1:
+                    argu = var_list[current_class][current_function][argu]
+                else:
+                    name = argu.split(".")
+                    argu = var_list[current_class][name[1]]
             arg += argu.get_assembly()
 
         roll = ""
@@ -231,6 +238,13 @@ class Methodcall(ASTNode):
         self.val.update_info()
         self.typ = self.val.get_typ()
         for arg in self.args:
+            if type(arg) == str:
+                index = arg.find(".")
+                if index == -1:
+                    arg = var_list[current_class][current_function][arg]
+                else:
+                    name = arg.split(".")
+                    arg = var_list[var_list[current_class][current_function][name[0]].get_typ().name][name[1]]
             arg.update_info()
 
         self.check_method()
@@ -268,25 +282,40 @@ class Function(ASTNode):
     def get_assembly(self):
         global current_function; current_function = self.name
 
-        local = ""
-        if len(var_list[current_class][current_function]) > 0:
-            local = []
-            for var in var_list[current_class][current_function]:
+        params = []
+        for param in self.params:
+            params.append(param) 
+
+        if len(params) > 0:
+            params = ".args " + ",".join(params) + "\n"
+        else:
+            params = ""
+
+        local = []
+        for var in var_list[current_class][current_function]:
+            if not var_list[current_class][current_function][var].param:
                 local.append(var)
 
+        if len(local) > 0:
             local = ".local " + ",".join(local) + "\n"
+        else:
+            local = ""
 
         program = ""
         for line in self.program:
             program += line.get_assembly()
 
-        ret = self.ret.get_assembly()
-        if type(self.ret) == Field:
-            ret = "load $\n\tload_field " + ret
+        if self.ret is None:
+            ret = "\tload nothing\n"
+        else:
+            if type(self.ret) == Field:
+                ret = f"\tload {self.ret.val}\n\tload_field {self.ret.val}:{self.ret.name}\n"
+            else:
+                ret = self.ret.get_assembly()
 
         current_function = "Constr"
 
-        text = f".method {self.name}\n{local}\tenter\n{program}{ret}\treturn {len(self.params)}"
+        text = f".method {self.name}\n{params}{local}\tenter\n{program}{ret}\treturn {len(self.params)}\n"
         return text
 
     def update_info(self):
@@ -294,25 +323,29 @@ class Function(ASTNode):
 
         var_list[current_class][current_function] = {}
 
+        params = {}
+        for param in self.params:
+            params[param] = self.params[param]
+            v = Var(param, types[self.params[param]])
+            v.param = True
+            var_list[current_class][current_function][param] = v
+
         for parts in self.program:
             parts.update_info()
 
-        if type(self.ret) == str:
-            index = self.ret.find(".")
-            if index == -1:
-                self.ret = var_list[current_class][current_function][self.ret]
-            else:
-                name = self.ret.split(".")
-                if name[0] == "$" or name[0] == "this":
-                    self.ret = var_list[current_class][name[1]]
+        if self.ret is not None:
+            if type(self.ret) == str:
+                index = self.ret.find(".")
+                if index == -1:
+                    self.ret = var_list[current_class][current_function][self.ret]
                 else:
-                    self.ret = var_list[name[0]][name[1]]
+                    name = self.ret.split(".")
+                    if name[0] == "$" or name[0] == "this":
+                        self.ret = var_list[current_class][name[1]]
+                    else:
+                        self.ret = var_list[name[0]][name[1]]
 
-        self.ret.update_info()
-
-        params = {}
-        for param in self.params:
-            params[param[0]] = param[1]
+            self.ret.update_info()
 
         types[current_class].methods[self.name] = Method(self.name, self.typ, params)
 
@@ -501,7 +534,7 @@ class Assignment(ASTNode):
         store = "store"
 
         if type(self.name) == Field:
-            name = "$:" + self.name.name + "\n"
+            name = f"{self.name.val}:{self.name.name}\n"
             store = "load $\n\tstore_field"
         else:
             name = self.name.name + "\n"
@@ -624,6 +657,9 @@ class BuildTree(Transformer):
         arg = [val]
         return arg
 
+    def ret(self, val):
+        return val
+
     def class_create(self, name, args):
         ins = Instance(str(name), args)
         return ins
@@ -641,7 +677,7 @@ class BuildTree(Transformer):
             li.update({func.name: func})
         return li
 
-    def func(self, name, params, typ, program, ret):
+    def func(self, name, params, typ, program, ret=None):
         func = Function(name, params, typ, program, ret)
         return func
 

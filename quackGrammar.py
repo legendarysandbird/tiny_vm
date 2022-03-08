@@ -26,7 +26,9 @@ quack_grammar = r"""
 
     funcs: func*
 
-    func: "def" lexp "(" params ")" ":" typ "{" block "return" rexp ";" "}"
+    func: "def" lexp "(" params ")" ":" typ "{" block [ret] "}"
+
+    ret: "return" rexp ";"
 
     block: statement* 
 
