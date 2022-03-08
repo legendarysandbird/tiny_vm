@@ -209,7 +209,11 @@ class Methodcall(ASTNode):
                     argu = var_list[current_class][current_function][argu]
                 else:
                     name = argu.split(".")
-                    argu = var_list[current_class][name[1]]
+                    typ = var_list[current_class][current_function][name[0]].get_typ().name
+                    if typ == current_class:
+                        typ = "$"
+                    argu = Field(name[0], name[1], typ)
+                    argu.valid = True
             arg += argu.get_assembly()
 
         roll = ""
@@ -244,7 +248,7 @@ class Methodcall(ASTNode):
                     arg = var_list[current_class][current_function][arg]
                 else:
                     name = arg.split(".")
-                    arg = var_list[var_list[current_class][current_function][name[0]].get_typ().name][name[1]]
+                    arg = var_list[current_class][current_function][name[0]]
             arg.update_info()
 
         self.check_method()
@@ -306,7 +310,7 @@ class Function(ASTNode):
             program += line.get_assembly()
 
         if self.ret is None:
-            ret = "\tload nothing\n"
+            ret = "\tconst nothing\n"
         else:
             if type(self.ret) == Field:
                 ret = f"\tload {self.ret.val}\n\tload_field {self.ret.val}:{self.ret.name}\n"
@@ -515,8 +519,8 @@ class Field(Var):
             self.val = "$"
 
     def get_assembly(self):
-        assert self.valid, f"Field {self.name.name} has not been initialized before use"
-        return f"\tload $\n\tload_field {self.val}:{self.name}\n"
+        assert self.valid, f"Field {self.name} has not been initialized before use"
+        return f"\tload {self.val}\n\tload_field $:{self.name}\n"
 
     def update_info(self):
         self.valid = True
@@ -534,8 +538,8 @@ class Assignment(ASTNode):
         store = "store"
 
         if type(self.name) == Field:
-            name = f"{self.name.val}:{self.name.name}\n"
-            store = "load $\n\tstore_field"
+            name = f"$:{self.name.name}\n"
+            store = f"load {self.name.val}\n\tstore_field"
         else:
             name = self.name.name + "\n"
         return f"{val}\t{store} {name}"
