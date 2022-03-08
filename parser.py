@@ -200,13 +200,14 @@ class Methodcall(ASTNode):
         
     def get_assembly(self):
         val = self.val.get_assembly()
-        arg = self.args
 
-        if arg != "":
-            arg = self.args.get_assembly()
+        arg = ""
+        for argu in self.args:
+            arg += argu.get_assembly()
+
         roll = ""
 
-        if self.method == "sub" or self.method == "div" or self.method == "less":
+        if self.method == "sub" or self.method == "div" or self.method == "less" or self.method == "plus":
             roll = "\troll 1\n"
 
         text = f"{val}{arg}{roll}\tcall {self.typ.name}:{self.method}\n"
@@ -223,9 +224,15 @@ class Methodcall(ASTNode):
                 self.val = var_list[current_class][current_function][self.val]
             else:
                 name = self.val.split(".")
-                self.val = var_list[current_class][name[1]]
+                if name[0] == "$" or name[0] == "this":
+                    self.val = var_list[current_class][name[1]]
+                else:
+                    self.val = var_list[name[0]][name[1]]
         self.val.update_info()
         self.typ = self.val.get_typ()
+        for arg in self.args:
+            arg.update_info()
+
         self.check_method()
 
     def check_method(self):
@@ -241,9 +248,9 @@ class Methodcall(ASTNode):
             else:
                 typ = types[typ.name].parent
                 if typ != None:
-                    typ = types[typ]
+                    typ = types[typ.name]
     
-        print(f"ERROR: {typ} does not have a {self.method} method")
+        sys.stderr.write(f"ERROR: {self.typ} does not have a {self.method} method\n")
         sys.exit(1)
 
     def get_typ(self):
@@ -291,7 +298,16 @@ class Function(ASTNode):
             parts.update_info()
 
         if type(self.ret) == str:
-            self.ret = var_list[current_class][current_function][self.ret]
+            index = self.ret.find(".")
+            if index == -1:
+                self.ret = var_list[current_class][current_function][self.ret]
+            else:
+                name = self.ret.split(".")
+                if name[0] == "$" or name[0] == "this":
+                    self.ret = var_list[current_class][name[1]]
+                else:
+                    self.ret = var_list[name[0]][name[1]]
+
         self.ret.update_info()
 
         params = {}
@@ -340,9 +356,11 @@ class Class(ASTNode):
         for line in self.code:
             code += line.get_assembly()
 
-        funcs = ""
+        funcs = []
         for func in self.funcs:
-            funcs += self.funcs[func].get_assembly()
+            funcs.append(self.funcs[func].get_assembly())
+
+        funcs = "\n".join(funcs)
 
         fields = ""
         for key in var_list[current_class]:
@@ -359,7 +377,7 @@ class Class(ASTNode):
         global current_class; current_class = self.name
 
         var_list[current_class] = {"Constr": {}}
-        types[self.name] = Type(self.name, self.parent, {}, {})
+        types[self.name] = Type(self.name, types[self.parent], {}, {})
         file_list.append(self.name)
 
         for param in self.params:
@@ -479,18 +497,17 @@ class Assignment(ASTNode):
 
     def get_assembly(self):
         self.name.valid = True
-        val = self.val.get_assembly()
+        val = self.val.get_assembly();
         store = "store"
 
         if type(self.name) == Field:
-            name = "$:" + self.name.field.name + "\n"
+            name = "$:" + self.name.name + "\n"
             store = "load $\n\tstore_field"
         else:
             name = self.name.name + "\n"
         return f"{val}\t{store} {name}"
 
     def update_info(self):
-
         index = self.name.find(".")
         if index == -1:
             if type(self.val) == str:
@@ -509,7 +526,10 @@ class Assignment(ASTNode):
             self.val.update_info()
 
             var_list[current_class][name[1]] = Field(name[0], name[1], self.val.get_typ())
-            self.name = var_list[current_class][current_function][name[1]]
+            if name[0] == "$" or name[0] == "this":
+                self.name = var_list[current_class][name[1]]
+            else:
+                self.name = var_list[name[0]][name[1]]
             self.name.update_info()
 
         self.typ = self.name.get_typ()
@@ -543,7 +563,7 @@ class BuildTree(Transformer):
     def string(self, text):
         return String(text)
 
-    def methodcall(self, val, method, args=""):
+    def methodcall(self, val, method, args=[]):
         return Methodcall(val, str(method), args)
 
     def field(self, val, field):
@@ -626,22 +646,22 @@ class BuildTree(Transformer):
         return func
 
     def plus(self, a, b):
-        return Methodcall(a, "plus", b)
+        return Methodcall(a, "plus", [b])
 
     def sub(self, a, b):
-        return Methodcall(a, "sub", b)
+        return Methodcall(a, "sub", [b])
 
     def mult(self, a, b):
-        return Methodcall(a, "mult", b)
+        return Methodcall(a, "mult", [b])
 
     def div(self, a, b):
-        return Methodcall(a, "div", b)
+        return Methodcall(a, "div", [b])
 
     def eq(self, a, b):
-        return Methodcall(a, "equals", b)
+        return Methodcall(a, "equals", [b])
 
     def lt(self, a, b):
-        return Methodcall(a, "less", b)
+        return Methodcall(a, "less", [b])
 
 def main():
     if len(sys.argv) != 2:

@@ -7,4 +7,7 @@ for line in $(cat tmp000.txt);
 	do python3 assemble.py $line.asm OBJ/$line.json;
 done &&
 ./tiny_vm $line
+for file in $(cat tmp000.txt);
+	do rm $file.asm OBJ/$file.json;
+done
 rm tmp000.txt
