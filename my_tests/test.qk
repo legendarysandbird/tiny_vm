@@ -1,0 +1,15 @@
+class Hello(i: Int) {
+	this.i = i;
+
+	def test() : String {
+		if (this.i < 5) {
+			var = "No!\n";
+		} else {
+			var = "You lose :(\n";
+		}	
+
+		return var;
+	}
+}
+
+Hello(6).print();

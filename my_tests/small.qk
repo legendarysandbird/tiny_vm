@@ -1,0 +1,22 @@
+i = 1;
+i.print();
+
+/* This is a comment.
+It should be ignored */
+
+if (false) {
+	"Hi\n".print();
+} elif (i == 1) {
+	"Middle\n".print();
+} elif (i == 2) {
+	"Other middle\n".print();
+}
+
+(((3-2).string()) + "Okay").print();
+
+j = 2;
+
+while (j < 5) {
+	"Here\n".print();
+	j = j + 1;
+}

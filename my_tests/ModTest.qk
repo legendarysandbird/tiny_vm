@@ -1,0 +1,42 @@
+// Testing implementing modulo operation
+
+class Mod(modulus: Int) extends Obj {
+    this.modulus = modulus;
+
+    def mod(x: Int) : Int {
+        // Returns x mod this.modulus
+    
+        y = this.modulus;
+
+        while x >= y {
+            x = x - y;
+        }
+
+        while x < 0 {
+            x = x + y;
+        }
+
+        return x;
+    }
+    
+    def printModulus() : Int {
+        this.modulus.print();
+    }
+}
+
+m = 7;
+modObj = Mod(m);
+
+i = 1;
+while i < 14 {
+    x = modObj.mod(i);
+    
+    i.print();
+    " mod ".print();
+    modObj.printModulus();
+    " = ".print();
+    x.print();
+    "\n".print();
+
+    i = i + 1;
+}

@@ -1,0 +1,23 @@
+class Pt(x: Int, y: Int) {
+	this.x = x;
+	this.y = y;
+
+	def _get_x(): Int {
+		return this.x;
+	}
+
+	def _get_y(): Int {
+		return this.y;
+	}
+
+	def translate(dx: Int, dy: Int): Nothing {
+		this.x = this.x + dx;
+		this.y = this.y + dy;
+	}
+
+	def plus(other: Pt): Pt {
+		return Pt(this.x + other.x, this.y + other.y);
+	}
+}
+
+(Pt(3,2) + Pt(4,4)).print();
