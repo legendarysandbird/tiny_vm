@@ -26,7 +26,7 @@ quack_grammar = r"""
 
     funcs: func*
 
-    func: "def" lexp "(" params ")" ":" typ "{" block [ret] "}"
+    func: "def" NAME "(" params ")" ":" typ "{" block [ret] "}"
 
     ret: "return" rexp ";"
 
@@ -40,8 +40,8 @@ quack_grammar = r"""
 
     condelse: "else" "{" program "}"
 
-    methodcall: lexp "." NAME "(" ")"
-        | lexp "." NAME "(" args ")"
+    methodcall: reference "." NAME "(" ")"
+        | reference "." NAME "(" args ")"
         | atom "." NAME "(" ")"
         | atom "." NAME "(" args ")"
 
@@ -49,8 +49,11 @@ quack_grammar = r"""
 
     rexp: relation
 
-    ?lexp: NAME                 -> var
-        | lexp "." NAME         -> field
+    ?lexp: NAME                 -> var_create
+        | lexp "." NAME         -> field_create
+
+    ?reference: NAME            -> var_call
+        | reference "." NAME    -> field_call
 
     typ: NAME
 
@@ -75,7 +78,7 @@ quack_grammar = r"""
 
     ?quark: INT                  -> number
         | "-" quark             -> neg
-        | lexp
+        | reference
         | "(" sum ")"
         | STRING               -> string
         | bool

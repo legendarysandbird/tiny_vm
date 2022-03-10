@@ -191,24 +191,12 @@ class Methodcall(ASTNode):
         self.method = method
         self.val = val
         self.args = args
-        self.typ = "Unknown"
         
     def get_assembly(self):
         val = self.val.get_assembly()
 
         arg = ""
         for argu in self.args:
-            if type(argu) == str:
-                index = argu.find(".")
-                if index == -1:
-                    argu = var_list[current_class][current_function][argu]
-                else:
-                    name = argu.split(".")
-                    typ = var_list[current_class][current_function][name[0]].get_typ().name
-                    if typ == current_class:
-                        typ = "$"
-                    argu = Field(name[0], name[1], typ)
-                    argu.valid = True
             arg += argu.get_assembly()
 
         roll = ""
@@ -216,10 +204,7 @@ class Methodcall(ASTNode):
         if self.method == "sub" or self.method == "div" or self.method == "less" or self.method == "plus":
             roll = "\troll 1\n"
 
-        if type(self.val) == Var:
-            text = f"{arg}{val}{roll}\tcall {self.typ.name}:{self.method}\n"
-        else:
-            text = f"{val}{arg}{roll}\tcall {self.typ.name}:{self.method}\n"
+        text = f"{val}{arg}{roll}\tcall {self.typ.name}:{self.method}\n"
 
         if self.method == "print":
             text += "\tpop\n"
@@ -227,26 +212,9 @@ class Methodcall(ASTNode):
         return text
 
     def update_info(self):
-        if type(self.val) == str:
-            index = self.val.find(".")
-            if index == -1:
-                self.val = var_list[current_class][current_function][self.val]
-            else:
-                name = self.val.split(".")
-                if name[0] == "$" or name[0] == "this":
-                    self.val = var_list[current_class][name[1]]
-                else:
-                    self.val = var_list[name[0]][name[1]]
         self.val.update_info()
         self.typ = self.val.get_typ()
         for arg in self.args:
-            if type(arg) == str:
-                index = arg.find(".")
-                if index == -1:
-                    arg = var_list[current_class][current_function][arg]
-                else:
-                    name = arg.split(".")
-                    arg = var_list[current_class][current_function][name[0]]
             arg.update_info()
 
         self.check_method()
@@ -311,10 +279,7 @@ class Function(ASTNode):
         if self.ret is None:
             ret = "\tconst nothing\n"
         else:
-            if type(self.ret) == Field:
-                ret = f"\tload {self.ret.val}\n\tload_field {self.ret.val}:{self.ret.name}\n"
-            else:
-                ret = self.ret.get_assembly()
+            ret = self.ret.get_assembly()
 
         current_function = "Constr"
 
@@ -329,26 +294,15 @@ class Function(ASTNode):
         params = {}
         for param in self.params:
             params[param] = self.params[param]
-            v = Var(param, types[self.params[param]])
+            v = VarType(types[self.params[param]])
             v.param = True
+            v.valid = True
             var_list[current_class][current_function][param] = v
 
         for parts in self.program:
             parts.update_info()
 
-        if self.ret is not None:
-            if type(self.ret) == str:
-                index = self.ret.find(".")
-                if index == -1:
-                    self.ret = var_list[current_class][current_function][self.ret]
-                else:
-                    name = self.ret.split(".")
-                    if name[0] == "$" or name[0] == "this":
-                        self.ret = var_list[current_class][name[1]]
-                    else:
-                        self.ret = var_list[name[0]][name[1]]
-
-            self.ret.update_info()
+        self.ret.update_info()
 
         types[current_class].methods[self.name] = Method(self.name, self.typ, params)
 
@@ -417,7 +371,7 @@ class Class(ASTNode):
         file_list.append(self.name)
 
         for param in self.params:
-            v = Var(param, types[self.params[param]])
+            v = VarType(types[self.params[param]])
             v.valid = True
             v.param = True
             var_list[current_class][current_function][param] = v
@@ -481,17 +435,17 @@ class Bool(Const):
         super().__init__(val)
 
     def update_info(self):
-        self.typ = types["String"]
+        self.typ = types["Boolean"]
 
 # Variables
-class Var(ASTNode):
-    def __init__(self, name, typ):
-        super().__init__()
-        self.name = name
+class VarType():
+    def __init__(self):
         self.typs = set()
-        self.typs.add(typ)
         self.valid = False
         self.param = False
+
+    def add_typ(self, typ):
+        self.typs.add(typ)
 
     def get_typ(self):
         typs = list(self.typs)
@@ -501,78 +455,82 @@ class Var(ASTNode):
             typs.append(typ0.get_common_ancestor(typ1))
         return typs[0]
 
+class VarCreate(ASTNode):
+    def __init__(self, name):
+        super().__init__()
+        self.name = name
+        if self.name not in var_list[current_class][current_function]:
+            v = VarType()
+            self.typ = v
+            var_list[current_class][current_function][self.name] = v
+
     def get_assembly(self):
-        assert self.valid, f"Variable {self.name} has not been initialized before use"
+        self.typ.valid = True
+        return f"\tstore {self.name}\n"
+
+    def update_info(self, typ):
+        self.typ.add_typ(typ)
+
+class VarCall(ASTNode):
+    def __init__(self, name):
+        super().__init__()
+        self.name = name
+
+    def get_assembly(self):
+        assert self.typ.valid, f"Variable {self.name} has not been initialized before use"
         return f"\tload {self.name}\n"
 
     def update_info(self):
-        self.valid = True
+        self.typ = var_list[current_class][current_function][self.name]
 
-class Field(Var):
-    def __init__(self, val, name, typ):
-        super().__init__(name, typ)
-        self.val = val
+class FieldCreate(ASTNode):
+    def __init__(self, val, name):
+        super().__init__()
+        self.name = name
+        if self.val == "this":
+            self.val = "$"
+        if self.name not in var_list[current_class]:
+            v = VarType()
+            self.typ = v
+            var_list[current_class][self.name] = v
+
+    def get_assembly(self):
+        self.typ.valid = True
+        return f"\tload {self.val}\n\tstore_field {self.val}:{self.name}\n"
+
+    def update_info(self, typ):
+        self.typ.add_typ(typ)
+
+class FieldCall(ASTNode):
+    def __init__(self, val, name):
+        super().__init__()
+        self.name = name
         if self.val == "this":
             self.val = "$"
 
     def get_assembly(self):
-        assert self.valid, f"Field {self.name} has not been initialized before use"
-        return f"\tload {self.val}\n\tload_field $:{self.name}\n"
+        assert self.typ.valid, f"Field {self.name} has not been initialized before use"
+        return f"\tload {self.val}\n\tload_field {self.val}:{self.name}\n"
 
     def update_info(self):
-        self.valid = True
+        self.typ = var_list[current_class][self.name]
 
 class Assignment(ASTNode):
     def __init__(self, name, val):
         super().__init__()
         self.name = name
         self.val = val
-        self.typ = "Unknown"
 
     def get_assembly(self):
-        self.name.valid = True
         val = self.val.get_assembly();
-        store = "store"
-
-        if type(self.name) == Field:
-            name = f"$:{self.name.name}\n"
-            store = f"load {self.name.val}\n\tstore_field"
-        else:
-            name = self.name.name + "\n"
-        return f"{val}\t{store} {name}"
+        name = self.name.get_assembly();
+        return f"{val}{name}"
 
     def update_info(self):
-        index = self.name.find(".")
-        if index == -1:
-            if type(self.val) == str:
-                self.val = var_list[current_class][current_function][self.name]
-
-            self.val.update_info()
-
-            if self.name in var_list[current_class][current_function]:
-                var_list[current_class][current_function][self.name].typs.add(self.val.get_typ())
-            else:
-                var_list[current_class][current_function][self.name] = Var(self.name, self.val.get_typ())
-            self.name = var_list[current_class][current_function][self.name]
-            self.name.update_info()
-        else:
-            name = self.name.split(".")
-            if type(self.val) == str:
-                self.val = var_list[current_class][current_function][name[1]]
-
-            self.val.update_info()
-
-            if name[1] in var_list[current_class]:
-                var_list[current_class][name[1]].typs.add(self.val.get_typ())
-            else:
-                var_list[current_class][name[1]] = Field(name[0], name[1], self.val.get_typ())
-            if name[0] == "$" or name[0] == "this":
-                self.name = var_list[current_class][name[1]]
-            else:
-                self.name = var_list[name[0]][name[1]]
-            self.name.update_info()
-
-        self.typ = self.name.get_typ()
+        self.val.update_info()
+        self.name.update_info(self.val.typ)
+        self.typ = self.val.typ
+        
 
 @v_args(inline=True)    # Affects the signatures of the methods
 class BuildTree(Transformer):
@@ -591,8 +549,11 @@ class BuildTree(Transformer):
     def untyped(self, name, val):
         return Assignment(name, val)
 
-    def var(self, name):
-        return str(name)
+    def var_call(self, name):
+        return VarCall(name)
+
+    def var_create(self, name):
+        return VarCreate(name)
     
     def rexp(self, math_node):
         return math_node
@@ -606,8 +567,11 @@ class BuildTree(Transformer):
     def methodcall(self, val, method, args=[]):
         return Methodcall(val, str(method), args)
 
-    def field(self, val, field):
-        return f"{val}.{field}"
+    def field_call(self, val, field):
+        return FieldCall(val, field)
+
+    def field_create(self, val, field):
+        return FieldCreate(val, field)
     
     def loop(self, condition, block):
         return Loop(condition, block)
