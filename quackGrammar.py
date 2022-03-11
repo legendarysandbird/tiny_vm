@@ -40,8 +40,8 @@ quack_grammar = r"""
 
     condelse: "else" "{" program "}"
 
-    methodcall: reference "." NAME "(" ")"
-        | reference "." NAME "(" args ")"
+    methodcall: NAME "." NAME "(" ")"
+        | NAME "." NAME "(" args ")"
         | atom "." NAME "(" ")"
         | atom "." NAME "(" args ")"
 
@@ -49,11 +49,8 @@ quack_grammar = r"""
 
     rexp: relation
 
-    ?lexp: NAME                 -> var_create
-        | lexp "." NAME         -> field_create
-
-    ?reference: NAME            -> var_call
-        | reference "." NAME    -> field_call
+    ?lexp: NAME
+        | NAME "." NAME -> field
 
     typ: NAME
 
@@ -78,7 +75,7 @@ quack_grammar = r"""
 
     ?quark: INT                  -> number
         | "-" quark             -> neg
-        | reference
+        | lexp                  -> var_call
         | "(" sum ")"
         | STRING               -> string
         | bool
