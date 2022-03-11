@@ -9,6 +9,8 @@ As of right now, the only things that aren't working at all in this compiler are
 typecase statements. I have the type system in place to implement inheritance, the only problem is that
 I'm not sure what the assembly code is supposed to look like for it. And typecases probably wouldn't
 be too hard to implement, I would just have to pass an updated environment into the typecase block.
+Also, the type checking for control flow doesn't work. I had it working in a previous version of the
+project, but since I changed a bunch of stuff for this final iteration it is no longer working.
 
 ## How to use
 
