@@ -223,7 +223,7 @@ class Methodcall(ASTNode):
         self.check_method()
 
     def check_method(self):
-        typ = self.typ
+        typ = self.val.get_typ()
         while typ != None:
             if self.method in types[typ.name].methods:
                 self.typ = types[typ.name]
@@ -467,7 +467,7 @@ class VarCreate(ASTNode):
         return f"\tstore {self.name}\n"
 
     def update_info(self, typ):
-        if self.name not in var_list[current_class]:
+        if self.name not in var_list[current_class][current_function]:
             v = VarType()
             v.add_typ(typ)
             self.typ = v
@@ -489,6 +489,7 @@ class VarCall(ASTNode):
         return f"\tload {self.name}\n"
 
     def update_info(self):
+        assert self.name in var_list[current_class][current_function], f"Variable {self.name} has not been initialized before use"
         self.typ = var_list[current_class][current_function][self.name]
 
     def get_typ(self):
@@ -533,6 +534,7 @@ class FieldCall(ASTNode):
         return f"\tload {self.val}\n\tload_field {self.val}:{self.name}\n"
 
     def update_info(self):
+        assert self.name in var_list[current_class], f"Field {self.val}.{self.name} has not been initialized before use"
         self.typ = var_list[current_class][self.name]
 
     def get_typ(self):

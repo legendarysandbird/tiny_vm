@@ -6,9 +6,6 @@ functionality works even in some weird edge cases.
 i = 1;
 i.print();
 
-/* This is a comment.
-It should be ignored */
-
 if false {
 	"Hi\n".print();
 } elif i == 1 {
