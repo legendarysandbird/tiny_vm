@@ -6,6 +6,9 @@
     "print",
     "equals",
     "less",
+	"greater",
+	"LE",
+	"GE",
     "plus"
   ],
   "fields": []

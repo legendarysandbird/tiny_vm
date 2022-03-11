@@ -6,10 +6,13 @@
                "print",
                 "equals",
                 "less",
+				"greater",
+				"LE",
+				"GE",
                 "plus",
-		"sub",
-		"mult",
-		"div"
+				"sub",
+				"mult",
+				"div"
   ],
   "fields": []
 }
