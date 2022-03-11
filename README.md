@@ -10,7 +10,9 @@ typecase statements. I have the type system in place to implement inheritance, t
 I'm not sure what the assembly code is supposed to look like for it. And typecases probably wouldn't
 be too hard to implement, I would just have to pass an updated environment into the typecase block.
 Also, the type checking for control flow doesn't work. I had it working in a previous version of the
-project, but since I changed a bunch of stuff for this final iteration it is no longer working.
+project, but since I changed a bunch of stuff for this final iteration it is no longer working. Finally,
+you might get an error saying that a variable has not been initialized even though it has. This is
+because I for some reason cannot predict the order that Lark parses the program. 
 
 ## How to use
 
