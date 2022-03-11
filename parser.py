@@ -9,6 +9,9 @@ elif_count = 0
 elif_inner_count = 0
 else_count = 0
 while_count = 0
+and_count = 0
+or_count = 0
+not_count = 0
 
 # Namespace trackers
 current_class = "Global"
@@ -152,6 +155,54 @@ class Loop(ASTNode):
     def update_info(self):
         self.condition.update_info()
         self.block.update_info()
+
+class And(ASTNode):
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+
+    def get_assembly(self):
+        global and_count
+        left = self.left.get_assembly()
+        right = self.right.get_assembly()
+        msg = f"{left}\tjump_ifnot and_mid{and_count}\n{right}\tjump and_end{and_count}\nand_mid{and_count}:\n\tconst false\nand_end{and_count}:\n"
+        and_count += 1
+        return msg
+
+    def update_info(self):
+        self.left.update_info()
+        self.right.update_info()
+
+class Or(ASTNode):
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+
+    def get_assembly(self):
+        global or_count
+        left = self.left.get_assembly()
+        right = self.right.get_assembly()
+        msg = f"{left}\tjump_if or_mid{or_count}\n{right}\tjump or_end{or_count}\nor_mid{or_count}:\n\tconst true\nor_end{or_count}:\n"
+        or_count += 1
+        return msg
+
+    def update_info(self):
+        self.left.update_info()
+        self.right.update_info()
+
+class Not(ASTNode):
+    def __init__(self, cond):
+        self.cond = cond
+
+    def get_assembly(self):
+        global not_count
+        cond = self.cond.get_assembly()
+        msg = f"{cond}\tjump_if not_mid{not_count}\n\tconst true\n\tjump not_end{not_count}\n\tnot_mid{not_count}:\t\nconst false\n\tnot_end{not_count}:\n"
+        not_count += 1
+        return msg
+
+    def update_info(self):
+        self.cond.update_info()
 
 # Arithmetic Operations
 class BinOp(ASTNode):
@@ -724,6 +775,24 @@ class BuildTree(Transformer):
 
     def lt(self, a, b):
         return Methodcall(a, "less", [b])
+    
+    def gt(self, a, b):
+        return Methodcall(a, "greater", [b])
+
+    def le(self, a, b):
+        return Methodcall(a, "LE", [b])
+
+    def ge(self, a, b):
+        return Methodcall(a, "GE", [b])
+
+    def log_and(self, left, right):
+        return And(left, right)
+
+    def log_or(self, left, right):
+        return Or(left, right)
+    
+    def log_not(self, cond):
+        return Not(cond)
 
 def main():
     if len(sys.argv) != 2:

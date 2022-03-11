@@ -47,7 +47,7 @@ quack_grammar = r"""
 
     class_create: NAME "(" args ")"
 
-    rexp: relation
+    rexp: logical
 
     ?lexp: NAME
         | NAME "." NAME -> field
@@ -57,9 +57,19 @@ quack_grammar = r"""
     ?assignment: lexp ":" typ "=" rexp    -> typed
         | lexp "=" rexp             -> untyped
 
+    ?logical: logic_not
+        | logical "and" logic_not    -> log_and
+        | logical "or" logic_not     -> log_or
+
+    ?logic_not: relation
+        | "not" logic_not        -> log_not
+
     ?relation: sum
         | relation "<" sum     -> lt
         | relation "==" sum    -> eq
+        | relation ">" sum     -> gt
+        | relation "<=" sum    -> le
+        | relation ">=" sum    -> ge
 
     ?sum: product
         | sum "+" product       -> plus

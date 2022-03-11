@@ -8,7 +8,7 @@ i.print();
 
 if false {
 	"Hi\n".print();
-} elif i == 1 {
+} elif not i == 5 and i == 1 {
 	"Middle\n".print();
 } elif i == 2 {
 	"Other middle\n".print();
