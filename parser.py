@@ -805,6 +805,9 @@ def main():
     filename = sys.argv[1].split("/")[-1].split(".")[-2]
     file_list.append(filename)
 
+    tree = Lark(quack_grammar, parser="lalr", transformer=BuildTree()).parse(s) # Build tree
+    tree.update_info() # Fills in missing type information
+
     # Main file assembly
     output = f".class {filename}:Obj\n.method $constructor\n"
     if len(var_list["Global"]["Constr"]) > 0:
@@ -814,9 +817,6 @@ def main():
             li.append(var)
         output += ",".join(li)
     output += "\tenter\n"
-
-    tree = Lark(quack_grammar, parser="lalr", transformer=BuildTree()).parse(s) # Build tree
-    tree.update_info() # Fills in missing type information
 
     # Closing assembly for main file
     output += tree.get_assembly()
